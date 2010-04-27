@@ -54,10 +54,11 @@ class DenseLayer(object):
         self.spreg_fn = eval(self.spreg+"_spar")
         # Units specification
         self.one_sided = False if act in ['tanh','tanhnorm','softsign','arsinh','plc'] else True
-        if maskinit == 1:
+        self.maskinit = maskinit
+        if self.maskinit == 1:
             self.one_sided = False
-        if maskinit != 1 and maskinit != None:
-            if sum(maskinit.value) != maskinit.value.shape[0]:
+        if self.maskinit != 1 and self.maskinit != None:
+            if sum(self.maskinit.value) != self.maskinit.value.shape[0]:
                 self.one_sided = False
         self.bounded = False if act in ['rectifier','softplus','arsinh','pascalv'] else 1.
         #special cases
@@ -88,8 +89,8 @@ class DenseLayer(object):
             self.b = binit
         
         allocmask = False # to track allocation of the mask
-        if maskinit == None or maskinit == 1: # if no initial bias are given, do the 0 initialization
-            if maskinit == 1:
+        if self.maskinit == None orself. maskinit == 1: # if no initial bias are given, do the 0 initialization
+            if self.maskinit == 1:
                 mask_values = numpy.asarray((rng.binomial(1,0.5,(n_out,))-0.5)*2, dtype= theano.config.floatX)
                 allocmask = 'random'
             else:
@@ -97,7 +98,7 @@ class DenseLayer(object):
                 allocmask = 'ones'
             self.mask = theano.shared(value= mask_values, name = 'mask'+self.tag)
         else:
-            self.mask = maskinit
+            self.mask = self.maskinit
         #-----------------------------------------------------------------------------------
         self.createout(None)
         # standardized attribute
