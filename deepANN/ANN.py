@@ -89,7 +89,7 @@ class DenseLayer(object):
             self.b = binit
         
         allocmask = False # to track allocation of the mask
-        if self.maskinit == None orself. maskinit == 1: # if no initial bias are given, do the 0 initialization
+        if self.maskinit == None or self. maskinit == 1: # if no initial bias are given, do the 0 initialization
             if self.maskinit == 1:
                 mask_values = numpy.asarray((rng.binomial(1,0.5,(n_out,))-0.5)*2, dtype= theano.config.floatX)
                 allocmask = 'random'
@@ -646,10 +646,8 @@ class SDAE(object):
         self.__redefinemodel(0, depth_max,depth_max)
         self.__redefinemodel(-1, depth_max,depth_min,update_type=update_type)
         self.__definecost()
-        print 'bb'
         if self.bbbool:
             self.__definebbprop()
-        print 'monit'
         self.__monitorfunction()
         self.afficher()
     
