@@ -331,7 +331,7 @@ class SDAE(object):
                 #-----------------------------------------------------------------------------------
                 # Local update
                 if update_type == 'local' and i == depth_max-1 and self.mode != 'Sup' and\
-                        (self.mode != 'Aux' or self.updatetype == 'special'):
+                        (self.mode != 'Aux' or self.update_type == 'special'):
                     if direction == 1 or not(self.tie[i]):
                         self.params += tmp_layers[i].params
                         if self.regularization[i]:
@@ -401,7 +401,7 @@ class SDAE(object):
         wdaux = []
         paramsaux = []
         if self.aux:
-            if self.update != 'special':
+            if self.update_type != 'special':
                 paramsaux += self.auxlayer.params
                 if self.auxregularization:
                     wdaux += [self.auxregularization*self.auxlayer.wd]
@@ -477,7 +477,7 @@ class SDAE(object):
             ParamHess[p]= self.hessscal / (ParamHess[p] + self.hessscal)
         paramsaux = []
         upmaskaux = []
-        if self.aux and self.update != 'special':
+        if self.aux and self.update_type != 'special':
             paramsaux += self.auxlayer.params
             if self.bbbool:
                 upmaskaux += self.auxlayer.upmask
@@ -738,7 +738,7 @@ class SDAE(object):
     def afficher(self):
         paramsaux = []
         wdaux = []
-        if self.aux and self.update != 'special':
+        if self.aux and self.update_type != 'special':
             paramsaux += self.auxlayer.params
             if self.auxregularization:
                 wdaux += [self.auxregularization*self.auxlayer.wd]
