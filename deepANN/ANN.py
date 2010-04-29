@@ -1,5 +1,7 @@
 import numpy, time, cPickle, gzip
 
+import os
+
 import theano
 import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
@@ -152,6 +154,34 @@ class DenseLayer(object):
         self.dict_bbprop.update({self.W_upmask:T.dot(T.transpose(self.inp*self.inp),self.lin_bbprop)})
         return T.dot(self.lin_bbprop,T.transpose(self.W * self.W)),self.dict_bbprop
     
+    def save(self,path):
+        f = open(path+'W.pkl','w')
+        cPickle.dump(self.W.value,f)
+        f.close()
+        print self.W, 'saved in %s'%(path+'W.pkl')
+        f = open(path+'b.pkl','w')
+        cPickle.dump(self.b.value,f)
+        f.close()
+        print self.b, 'saved in %s'%(path+'b.pkl')
+        f = open(path+'mask.pkl','w')
+        cPickle.dump(self.mask.value,f)
+        f.close()
+        print self.b, 'saved in %s'%(path+'mask.pkl')
+    
+    def load(self,path):
+        f = open(path+'W.pkl','r')
+        self.W.value = cPickle.load(f)
+        f.close()
+        print self.W, 'loaded from %s'%(path+'W.pkl')
+        f = open(path+'b.pkl','r')
+        self.b.value = cPickle.load(f)
+        f.close()
+        print self.b, 'loaded from %s'%(path+'b.pkl')
+        f = open(path+'mask.pkl','r')
+        self.mask.value = cPickle.load(f)
+        f.close()
+        print self.b, 'loaded from %s'%(path+'mask.pkl')
+    
 #def scaling_rectifierweigths(self):
 #def moving_averageandvariances(self):
 #def localcontrastnormalization(self):
@@ -218,12 +248,25 @@ class SDAE(object):
         #for aux target init:
         self.aux = False
         self.auxdepth = None
+        self.auxlayertype = None
         self.auxtarget = None
-        self.aux_one_sided = None
-        self.auxlayer = None
         self.aux_scaling = None
+        self.aux_one_sided = None
         self.auxregularization = None
+        self.auxn_out = None
+        self.auxact = None
+        self.aux_one_sided = None
+        self.auxwdreg = None
         
+        #hard coded list paramters for saving and loading
+        self.paramsinitkeys = ['depth','one_sided_in','n_inp','n_hid','layertype',\
+                        'act','noise','tie','maskbool','n_out','outtype','regularization',\
+                        'sparsity','wdreg','spreg','reconstruction_cost','bbbool']
+        self.paramscurrentkeys = ['mode','depth_min','depth_max','aux','noise_lvl',\
+                            'update_type','lr','sup_scaling','unsup_scaling',\
+                            'hessscal']
+        self.paramsauxkeys = ['auxdepth','auxn_out','aux_scaling','auxregularization','auxlayertype',\
+                            'auxact','aux_one_sided','auxwdreg','auxwdreg']
         #first init by default
         self.ModeMixte(self.depth)
     
@@ -330,7 +373,7 @@ class SDAE(object):
                         #no need to do it for depth_min in decoding (target already sparse)
                 #-----------------------------------------------------------------------------------
                 # Local update
-                if update_type == 'local' and i == depth_max-1 and self.mode != 'Sup' and\
+                if (update_type == 'local' or update_type =='special') and i == depth_max-1 and self.mode != 'Sup' and\
                         (self.mode != 'Aux' or self.update_type == 'special'):
                     if direction == 1 or not(self.tie[i]):
                         self.params += tmp_layers[i].params
@@ -401,7 +444,7 @@ class SDAE(object):
         wdaux = []
         paramsaux = []
         if self.aux:
-            if self.update_type != 'special':
+            if (self.update_type != 'special' or self.auxdepth == 0):
                 paramsaux += self.auxlayer.params
                 if self.auxregularization:
                     wdaux += [self.auxregularization*self.auxlayer.wd]
@@ -477,7 +520,7 @@ class SDAE(object):
             ParamHess[p]= self.hessscal / (ParamHess[p] + self.hessscal)
         paramsaux = []
         upmaskaux = []
-        if self.aux and self.update_type != 'special':
+        if self.aux and (self.update_type != 'special' or self.auxdepth == 0):
             paramsaux += self.auxlayer.params
             if self.bbbool:
                 upmaskaux += self.auxlayer.upmask
@@ -516,7 +559,7 @@ class SDAE(object):
         if self.mode != 'Unsup':
             self.error = theano.function(inp2,self.outlayer.errors(self.out))
     
-    def auxiliary(self, init, auxdepth, n_out, aux_scaling=1., auxregularization = False,
+    def auxiliary(self, init, auxdepth, auxn_out, aux_scaling=1., auxregularization = False,
             auxlayertype = DenseLayer, auxact = 'sigmoid', aux_one_sided = True,
             auxwdreg = 'l2', Wtmp = None, btmp = None):
         """ This initialize an auxiliary target in the network only used in Mixte or Unsup Mode
@@ -532,6 +575,13 @@ class SDAE(object):
             self.auxdepth = auxdepth
             self.auxlayertype = auxlayertype
             self.auxtarget = T.matrix('auxtarget')
+            self.aux_scaling = aux_scaling
+            self.aux_one_sided = aux_one_sided
+            self.auxregularization = auxregularization
+            self.auxn_out = auxn_out
+            self.auxact = auxact
+            self.aux_one_sided = aux_one_sided
+            self.auxwdreg = auxwdreg
             if auxdepth <= 0:
                 tmp_inp = self.layers[-auxdepth-1].out
                 tmp_n_inp = self.layers[-auxdepth-1].n_out
@@ -539,12 +589,9 @@ class SDAE(object):
                 tmp_inp = self.layersdec[-auxdepth].out
                 tmp_n_inp = self.layersdec[-auxdepth].n_out
             print '\t---- Auxiliary Layer ----'
-            self.auxlayer = self.auxlayertype(self.rng, self.theano_rng,tmp_inp,tmp_n_inp,n_out,
+            self.auxlayer = self.auxlayertype(self.rng, self.theano_rng,tmp_inp,tmp_n_inp,auxn_out,
                                             auxact, noise = None, Winit = Wtmp, binit = btmp, wdreg = auxwdreg,
                                             spreg = 'l1', tag = 'aux' + '%s'%(auxdepth),upmaskbool = self.bbbool)
-            self.aux_scaling = aux_scaling
-            self.aux_one_sided = aux_one_sided
-            self.auxregularization = auxregularization
             tmp = 1
             if self.mode == 'Aux':
                 self.ModeAux(self.depth_max,self.update_type,self.lr,self.hessscal)
@@ -553,12 +600,15 @@ class SDAE(object):
             assert self.mode != 'Aux'
             self.aux = False
             self.auxdepth = None
-            self.auxtarget = None
             self.auxlayertype = None
-            self.auxlayer = None
-            self.aux_one_sided = None
+            self.auxtarget = None
             self.aux_scaling = None
+            self.aux_one_sided = None
             self.auxregularization = None
+            self.auxn_out = None
+            self.auxact = None
+            self.aux_one_sided = None
+            self.auxwdreg = None
         #to redefine properly the function
         self.__definecost()
         self.__monitorfunction()
@@ -575,7 +625,7 @@ class SDAE(object):
             n_max = train.value.shape[0] / batchsize
         givens = {}
         index = T.lscalar()    # index to a [mini]batch
-        if self.aux != None:
+        if self.aux:
             if type(aux) is list:
                 givens.update({self.auxtarget:T.cast(aux[0][index*batchsize:(index+1)*batchsize]/aux[1],aux[2])})
             else:
@@ -612,13 +662,81 @@ class SDAE(object):
         return func
     
     def save(self,fname):
-        f = open(fname,'w')
-        cPickle.dump(self,f)
+        paramsinit = dict((i,self.__dict__[i]) for i in self.paramsinitkeys)
+        paramscurrent = dict((i,self.__dict__[i]) for i in self.paramscurrentkeys)
+        paramsaux = dict((i,self.__dict__[i]) for i in self.paramsauxkeys)
+        f = open(fname+'/params.pkl','w')
+        cPickle.dump(paramsinit,f)
+        cPickle.dump(paramscurrent,f)
+        cPickle.dump(paramsaux,f)
+        f.close()
+        print 'params.pkl saved in %s'%fname
+        
+        for i in range(self.depth):
+            self.layers[i].save(fname+'/Layer'+str(i+1)+'_')
+            if not self.tie[i]:
+                self.layersdec[i].save(fname+'/Layerdec'+str(i+1)+'_')
+        if self.aux:
+            self.auxlayer.save(fname+'/Layeraux_')
+        self.outlayer.save(fname+'/Layerout_')
         print 'saved in %s'%fname
     
-    def load(self):
-        f = open(fname,'r')
-        self = cPickle.load(f)
+    def load(self,fname):
+        f = open(fname+'/params.pkl','r')
+        paramsinit = cPickle.load(f)
+        paramscurrent = cPickle.load(f)
+        paramsaux = cPickle.load(f)
+        f.close()
+        print 'params.pkl loaded in %s'%fname
+        #reload base model-----------------------
+        tmp = False
+        for i in self.paramsinitkeys:
+            if self.__dict__[i] != paramsinit[i]:
+                tmp = True
+        if tmp:
+            paramsinit.update({'inp' : self.inp, 'out' : self.out,\
+                                'rng':self.rng,'theano_rng':self.theano_rng})
+            self.__init__(**paramsinit)
+        #reload auxiliary layer------------------
+        tmp = False
+        for i in self.paramsauxkeys:
+            if self.__dict__[i] != paramsaux[i]:
+                tmp = True
+        if tmp:
+            self.auxiliary(1,**paramsaux)
+        #reloadmode-----------------------------
+        tmp = False
+        for i in self.paramscurrentkeys:
+            if self.__dict__[i] != paramscurrent[i]:
+                tmp = True
+        if tmp:
+            paramscurrent.pop('aux')
+            if paramscurrent['mode'] == 'Sup':
+                paramscurrent.pop('mode')
+                paramscurrent.pop('noise_lvl')
+                paramscurrent.pop('unsup_scaling')
+                self.ModeSup(**paramscurrent)
+            if paramscurrent['mode'] == 'Unsup':
+                paramscurrent.pop('mode')
+                paramscurrent.pop('sup_scaling')
+                self.ModeUnsup(**paramscurrent)
+            if paramscurrent['mode'] == 'Mixte':
+                paramscurrent.pop('mode')
+                self.ModeMixte(**paramscurrent)
+            if paramscurrent['mode'] == 'Aux':
+                paramscurrent.pop('mode')
+                paramscurrent.pop('noise_lvl')
+                paramscurrent.pop('unsup_scaling')
+                paramscurrent.pop('sup_scaling')
+                paramscurrent.pop('depth_min')
+                self.ModeAux(**paramscurrent)
+        for i in range(self.depth):
+            self.layers[i].load(fname+'/Layer'+str(i+1)+'_')
+            if not self.tie[i]:
+                self.layersdec[i].load(fname+'/Layerdec'+str(i+1)+'_')
+        if self.aux:
+            self.auxlayer.load(fname+'/Layeraux_')
+        self.outlayer.load(fname+'/Layerout_')
         print 'loaded from %s'%fname
     
     def ModeMixte(self, depth_max, depth_min=0, noise_lvl=None, update_type = 'global',
@@ -652,7 +770,7 @@ class SDAE(object):
         self.afficher()
     
     def ModeUnsup(self,depth_max,depth_min=0,noise_lvl=None,update_type = 'global',
-                        unsup_scaling = 1., lr = 0.1, hessscal = 0.001):
+                        lr = 0.1, unsup_scaling = 1., hessscal = 0.001):
         self.mode = 'Unsup'
         self.lr = lr
         self.sup_scaling = None
@@ -678,8 +796,8 @@ class SDAE(object):
         self.__monitorfunction()
         self.afficher()
     
-    def ModeSup(self,depth_max,depth_min=0,update_type = 'global', sup_scaling = 1.,
-                        lr = 0.1, hessscal = 0.001):
+    def ModeSup(self,depth_max,depth_min=0,update_type = 'global',lr = 0.1,
+                    sup_scaling = 1., hessscal = 0.001):
         self.mode = 'Sup'
         self.lr = lr
         self.sup_scaling = sup_scaling
@@ -738,7 +856,7 @@ class SDAE(object):
     def afficher(self):
         paramsaux = []
         wdaux = []
-        if self.aux and self.update_type != 'special':
+        if self.aux and (self.update_type != 'special' or self.auxdepth == 0):
             paramsaux += self.auxlayer.params
             if self.auxregularization:
                 wdaux += [self.auxregularization*self.auxlayer.wd]
@@ -762,9 +880,11 @@ class SDAE(object):
         print '\tsparsity, spreg = ', self.sparsity,',', self.spreg
         print '\tparams, wd, sp = ', self.params+paramsaux,',', self.wd+wdaux, ',', self.sp
         print '\tbbbool, hessscal = ', self.bbbool,',', self.hessscal
-        print '\taux, auxtarget, aux_one_sided, auxlayer auxregularization = ', \
+        print '\taux, auxtarget, aux_one_sided, auxdepth, auxregularization = ', \
                                 self.aux, ',', self.auxtarget, ',', self.aux_one_sided, ',', \
                                 self.auxdepth, ',', self.auxregularization
+        print '\tauxact, auxn_out, auxwdreg = ', \
+                                self.auxact, ',', self.auxn_out, ',', self.auxwdreg
 
 if __name__ == '__main__':
     
@@ -782,15 +902,16 @@ if __name__ == '__main__':
     del dat
     
     
-    a=SDAE(numpy.random,RandomStreams(),act='rectifier',depth=3,one_sided_in=True,n_hid=1000,regularization=False,sparsity=False,
-                reconstruction_cost='quadratic',n_inp= 784,n_out=10,tie=False)
+   
+    a=SDAE(numpy.random,RandomStreams(),act='tanh',depth=3,one_sided_in=True,n_hid=1000,\
+            regularization=False,sparsity=False,reconstruction_cost='cross_entropy',n_inp= 784,n_out=10,tie=False,maskbool=None)
     
     def training(a,train,trainl,test,testl,maxi = 2,b=False):
-        g,n = a.trainfunctionbatch(train,trainl,batchsize=10)
+        g,n = a.trainfunctionbatch(train = train,trainl=trainl,batchsize=10)
         if b:
-            f = a.errorfunction(test,testl)
+            f = a.errorfunction(data=test,datal=testl)
         else:
-            f = a.costfunction(test,testl)
+            f = a.costfunction(data=test,datal=testl)
         err = f()
         epoch = 0
         while epoch<=maxi:
@@ -800,21 +921,24 @@ if __name__ == '__main__':
             err = f()
         train.value = train.value[numpy.random.permutation(train.value.shape[0]),:]
     
-    a.ModeUnsup(1,0,0.25,'global',lr=0.005)
-    training(a,train,trainl,test,testl,maxi = 0)
+    a.ModeUnsup(1,0,0.25,'global',lr=0.01)
+    training(a,train,trainl,test,testl,maxi = 1)
     
-    #a.ModeUnsup(2,1,0.25,'global',lr=0.005)
-    #training(a,train,trainl,test,testl,maxi = 3)
+    a.ModeMixte(1,0,0.25,'global',lr=0.01,sup_scaling = 2.)
+    training(a,train,trainl,test,testl,maxi = 5,b=True)
     
-    a.ModeUnsup(2,1,0.25,'global',lr=0.005)
-    training(a,train,trainl,test,testl,maxi = 0)
+    a.ModeUnsup(2,1,0.25,'global',lr=0.01)
+    training(a,train,trainl,test,testl,maxi = 2)
     
-    #a.ModeUnsup(3,2,0.25,'global',lr=0.005)
-    #training(a,train,trainl,test,testl,maxi = 3)
+    a.ModeMixte(2,0,0.25,'global',lr=0.01,sup_scaling = 2.)
+    training(a,train,trainl,test,testl,maxi = 5,b=True)
     
-    a.ModeUnsup(3,2,0.25,'global',lr=0.005)
-    training(a,train,trainl,test,testl,maxi = 0)
+    a.ModeUnsup(3,2,0.25,'global',lr=0.01)
+    training(a,train,trainl,test,testl,maxi = 3)
     
-    a.ModeSup(3,3,'global',lr=0.01)
-    training(a,train,trainl,test,testl,maxi = 500,b=True)
+    a.ModeMixte(3,0,0.25,'global',lr=0.01,sup_scaling = 2.)
+    training(a,train,trainl,test,testl,maxi = 5,b=True)
+    
+    a.ModeSup(3,3,'global',lr=0.05)
+    training(a,train,trainl,test,testl,maxi = 50,b=True)
     
