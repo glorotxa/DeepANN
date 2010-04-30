@@ -132,11 +132,15 @@ class DenseLayer(object):
         self.noise_lvl = noise_lvl
         if self.noise == None or self.noise_lvl == None or self.noise_lvl == 0.:
             self.lin = T.dot(self.inp, self.W) + self.b
+            self.lin.name = 'lin'+self.tag
             self.out = self.mask * self.act_fn(self.lin)
+            self.out.name = 'out'+self.tag
         else:
             self.lin = T.dot(self.noise_fn(self.theano_rng, self.inp, self.noise_lvl),\
                                 self.W) + self.b
+            self.lin.name = 'lin'+self.tag
             self.out = self.mask * self.act_fn(self.lin)
+            self.out.name = 'out'+self.tag
         return self.out
     
     def updatemaskinit(self): #create update mask (used for bbprop)
@@ -166,7 +170,7 @@ class DenseLayer(object):
         f = open(path+'mask.pkl','w')
         cPickle.dump(self.mask.value,f)
         f.close()
-        print self.b, 'saved in %s'%(path+'mask.pkl')
+        print self.mask, 'saved in %s'%(path+'mask.pkl')
     
     def load(self,path):
         f = open(path+'W.pkl','r')
@@ -180,7 +184,7 @@ class DenseLayer(object):
         f = open(path+'mask.pkl','r')
         self.mask.value = cPickle.load(f)
         f.close()
-        print self.b, 'loaded from %s'%(path+'mask.pkl')
+        print self.mask, 'loaded from %s'%(path+'mask.pkl')
     
 #def scaling_rectifierweigths(self):
 #def moving_averageandvariances(self):
@@ -247,6 +251,7 @@ class SDAE(object):
         
         #for aux target init:
         self.aux = False
+        self.aux_active = False
         self.auxdepth = None
         self.auxlayertype = None
         self.auxtarget = None
@@ -443,8 +448,8 @@ class SDAE(object):
         
         wdaux = []
         paramsaux = []
-        if self.aux:
-            if (self.update_type != 'special' or self.auxdepth == 0):
+        if self.aux and self.aux_active:
+            if (self.update_type != 'special' or self.depth+self.auxdepth == self.depth_max):
                 paramsaux += self.auxlayer.params
                 if self.auxregularization:
                     wdaux += [self.auxregularization*self.auxlayer.wd]
@@ -476,16 +481,15 @@ class SDAE(object):
             if self.mode == 'Unsup' or self.mode == "Mixte":
                 bb_tmp += self.unsup_cost[1]
                 for i in xrange(self.depth_min,self.depth_max,1):
-                    bb_tmp, hess_tmp = self.layersdec[i].bbprop(bb_tmp)
-                    if self.aux and self.depth_max - 1 - i == self.auxdepth:
+                    if self.aux and i == self.depth - self.auxdepth:
                         bb_tmp2, hess_tmp2 = self.auxlayer.bbprop(self.aux_cost[1])
                         bb_tmp += bb_tmp2
-                        hess_tmp.update(hess_tmp2)
+                        ParamHess.update(hess_tmp2)
+                    bb_tmp, hess_tmp = self.layersdec[i].bbprop(bb_tmp)
                     ParamHess.update(hess_tmp)
             if self.mode == 'Sup' or self.mode == "Mixte":
                 bb_tmp2, hess_tmp2 = self.outlayer.bbprop()
-                if self.update_type=='global':
-                    bb_tmp += bb_tmp2
+                bb_tmp += bb_tmp2
                 ParamHess.update(hess_tmp2)
             if self.mode == 'Sup':
                 if self.update_type=='global':
@@ -495,25 +499,30 @@ class SDAE(object):
             if self.mode == 'Mixte' or self.mode == 'Unsup':
                 itera = xrange(self.depth_max-1,self.depth_min-1,-1)
             for i in itera:
-                bb_tmp, hess_tmp = self.layers[i].bbprop(bb_tmp)
-                if self.aux and i - self.depth_max - 1 == self.auxdepth:
+                if self.aux and i == self.depth + self.auxdepth - 1:
                     bb_tmp2, hess_tmp2 = self.auxlayer.bbprop(self.aux_cost[1])
                     bb_tmp += bb_tmp2
-                    hess_tmp.update(hess_tmp2)
+                    ParamHess.update(hess_tmp2)
+                bb_tmp, hess_tmp = self.layers[i].bbprop(bb_tmp)
                 ParamHess.update(hess_tmp)
+            #auxconnected to first layer?
+            if self.aux and self.depth + self.auxdepth == 0:
+                bb_tmp2, hess_tmp2 = self.auxlayer.bbprop(self.aux_cost[1])
+                ParamHess.update(hess_tmp2)
         else:
+            assert self.aux_active
             bb_tmp, hess_tmp = self.auxlayer.bbprop(self.aux_cost[1])
             ParamHess.update(hess_tmp)
             if self.update_type=='global':
                 if self.auxdepth>0:
-                    for i in xrange(self.depth_max - self.auxdepth,self.depth_max,1):
+                    for i in xrange(self.depth - self.auxdepth,self.depth_max,1):
                         bb_tmp, hess_tmp = self.layersdec[i].bbprop(bb_tmp)
                         ParamHess.update(hess_tmp)
                     for i in xrange(self.depth_max-1,-1,-1):
                         bb_tmp, hess_tmp = self.layers[i].bbprop(bb_tmp)
                         ParamHess.update(hess_tmp)
                 else:
-                    for i in xrange(self.depth_max-1+self.auxdepth,-1,-1):
+                    for i in xrange(self.depth-1+self.auxdepth,-1,-1):
                         bb_tmp, hess_tmp = self.layers[i].bbprop(bb_tmp)
                         ParamHess.update(hess_tmp)
         for p in ParamHess.keys():
@@ -559,9 +568,24 @@ class SDAE(object):
         if self.mode != 'Unsup':
             self.error = theano.function(inp2,self.outlayer.errors(self.out))
     
+    def __checkauxactive(self):
+        if self.auxdepth>0:
+            if self.mode == 'Sup':
+                return False
+            else:
+                if (self.depth_max > self.depth - self.auxdepth) and (self.depth_min <= self.depth - self.auxdepth):
+                    return True
+                else:
+                    return False
+        else:
+            if (self.depth_max >= self.depth + self.auxdepth):
+                return True
+            else:
+                return False
+    
     def auxiliary(self, init, auxdepth, auxn_out, aux_scaling=1., auxregularization = False,
             auxlayertype = DenseLayer, auxact = 'sigmoid', aux_one_sided = True,
-            auxwdreg = 'l2', Wtmp = None, btmp = None):
+            auxwdreg = 'l2', Wtmp = None, btmp = None,afficheb = True):
         """ This initialize an auxiliary target in the network only used in Mixte or Unsup Mode
             ***init : if 1 initialize the auxtarget, if 0 delete previous auxtarget
             ***auxlayer : a layer object already initialized with the good input given
@@ -573,6 +597,7 @@ class SDAE(object):
         if init: #init side
             self.aux = True
             self.auxdepth = auxdepth
+            self.aux_active = self.__checkauxactive()
             self.auxlayertype = auxlayertype
             self.auxtarget = T.matrix('auxtarget')
             self.aux_scaling = aux_scaling
@@ -583,8 +608,8 @@ class SDAE(object):
             self.aux_one_sided = aux_one_sided
             self.auxwdreg = auxwdreg
             if auxdepth <= 0:
-                tmp_inp = self.layers[-auxdepth-1].out
-                tmp_n_inp = self.layers[-auxdepth-1].n_out
+                tmp_inp = self.layers[auxdepth-1].out
+                tmp_n_inp = self.layers[auxdepth-1].n_out
             else:
                 tmp_inp = self.layersdec[-auxdepth].out
                 tmp_n_inp = self.layersdec[-auxdepth].n_out
@@ -592,13 +617,10 @@ class SDAE(object):
             self.auxlayer = self.auxlayertype(self.rng, self.theano_rng,tmp_inp,tmp_n_inp,auxn_out,
                                             auxact, noise = None, Winit = Wtmp, binit = btmp, wdreg = auxwdreg,
                                             spreg = 'l1', tag = 'aux' + '%s'%(auxdepth),upmaskbool = self.bbbool)
-            tmp = 1
-            if self.mode == 'Aux':
-                self.ModeAux(self.depth_max,self.update_type,self.lr,self.hessscal)
-                tmp = 0
         else: #delete side
             assert self.mode != 'Aux'
             self.aux = False
+            self.aux_active = False
             self.auxdepth = None
             self.auxlayertype = None
             self.auxtarget = None
@@ -614,52 +636,103 @@ class SDAE(object):
         self.__monitorfunction()
         if self.bbbool:
             self.__definebbprop()
-        if tmp:
+        if afficheb:
             self.afficher()
     
-    def trainfunctionbatch(self,train,trainl=None,aux = None,batchsize = 10):
+    def trainfunctionbatch(self,data,datal=None,aux = None,batchsize = 10):
         # compute number of minibatches for training
-        if type(train) is list:
-            n_max = train[0].value.shape[0] / batchsize
+        if type(data) is list:
+            n_max = data[0].value.shape[0] / batchsize
         else:
-            n_max = train.value.shape[0] / batchsize
+            n_max = data.value.shape[0] / batchsize
         givens = {}
         index = T.lscalar()    # index to a [mini]batch
-        if self.aux:
+        if self.aux and self.aux_active:
             if type(aux) is list:
-                givens.update({self.auxtarget:T.cast(aux[0][index*batchsize:(index+1)*batchsize]/aux[1],aux[2])})
+                givens.update({self.auxtarget:\
+                    T.cast(aux[0][index*batchsize:(index+1)*batchsize]/aux[1]+aux[2],aux[3])})
             else:
                 givens.update({self.auxtarget:aux[index*batchsize:(index+1)*batchsize]})
         if self.mode == 'Sup' or self.mode == 'Mixte':
-            if type(trainl) is list:
-                givens.update({self.out:T.cast(trainl[0][index*batchsize:(index+1)*batchsize]/trainl[1],trainl[2])})
+            if type(datal) is list:
+                givens.update({self.out:\
+                    T.cast(datal[0][index*batchsize:(index+1)*batchsize]/datal[1]+datal[2],datal[3])})
             else:
-                givens.update({self.out:trainl[index*batchsize:(index+1)*batchsize]})
-        if type(train) is list:
-            givens.update({self.inp:T.cast(train[0][index*batchsize:(index+1)*batchsize]/train[1],train[2])})
+                givens.update({self.out:datal[index*batchsize:(index+1)*batchsize]})
+        if type(data) is list:
+            givens.update({self.inp:\
+                T.cast(data[0][index*batchsize:(index+1)*batchsize]/data[1]+data[2],data[3])})
         else:
-            givens.update({self.inp:train[index*batchsize:(index+1)*batchsize]})
+            givens.update({self.inp:data[index*batchsize:(index+1)*batchsize]})
         # allocate symbolic variables for the data
         trainfunc = theano.function([index], self.cost, updates = self.updates, givens = givens)
         return trainfunc, n_max
     
-    def errorfunction(self,data,datal):
+    def errorfunction(self,data,datal,batchsize = 1000):
+        if type(data) is list:
+            n_max = data[0].value.shape[0] / batchsize
+            assert  n_max*batchsize == data[0].value.shape[0]
+        else:
+            n_max = data.value.shape[0] / batchsize
+            assert  n_max*batchsize == data.value.shape[0]
+        givens = {}
+        index = T.lscalar()    # index to a [mini]batch
         if self.mode != 'Unsup':
-            givens = {self.out:datal,self.inp:data}
+            if type(data) is list:
+                givens.update({self.inp:\
+                    T.cast(data[0][index*batchsize:(index+1)*batchsize]/data[1]+data[2],data[3])})
+            else:
+                givens.update({self.inp:data[index*batchsize:(index+1)*batchsize]})
+            if type(datal) is list:
+                givens.update({self.out:\
+                    T.cast(datal[0][index*batchsize:(index+1)*batchsize]/datal[1]+datal[2],datal[3])})
+            else:
+                givens.update({self.out:datal[index*batchsize:(index+1)*batchsize]})
             # allocate symbolic variables for the data
-            func = theano.function([], self.outlayer.errors(self.out), updates = self.specialupdates, givens = givens)
-            return func
+            func = theano.function([index], self.outlayer.errors(self.out), givens = givens)
+            def func2():
+                error = 0
+                for i in range(n_max):
+                    error += func(i)
+                return error / float(n_max)
+            return func2
         else:
             return False
     
-    def costfunction(self,data,datal=None,aux=None):
-        givens = {self.inp:data}
-        if self.aux:
-            givens.update({self.auxtarget:aux})
-        if self.mode != 'Unsup':
-            givens.update({self.out:datal})
-        func = theano.function([], self.cost, updates = self.specialupdates, givens = givens)
-        return func
+    def costfunction(self,data,datal=None,aux=None, batchsize = 1000):
+        if type(data) is list:
+            n_max = data[0].value.shape[0] / batchsize
+            assert  n_max*batchsize == data[0].value.shape[0]
+        else:
+            n_max = data.value.shape[0] / batchsize
+            assert  n_max*batchsize == data.value.shape[0]
+        givens = {}
+        index = T.lscalar()    # index to a [mini]batch
+        if self.aux and self.aux_active:
+            if type(aux) is list:
+                givens.update({self.auxtarget:\
+                    T.cast(aux[0][index*batchsize:(index+1)*batchsize]/aux[1]+aux[2],aux[3])})
+            else:
+                givens.update({self.auxtarget:aux[index*batchsize:(index+1)*batchsize]})
+        if self.mode == 'Sup' or self.mode == 'Mixte':
+            if type(datal) is list:
+                givens.update({self.out:\
+                    T.cast(datal[0][index*batchsize:(index+1)*batchsize]/datal[1]+datal[2],datal[3])})
+            else:
+                givens.update({self.out:datal[index*batchsize:(index+1)*batchsize]})
+        if type(data) is list:
+            givens.update({self.inp:\
+                T.cast(data[0][index*batchsize:(index+1)*batchsize]/data[1]+data[2],data[3])})
+        else:
+            givens.update({self.inp:data[index*batchsize:(index+1)*batchsize]})
+        # allocate symbolic variables for the data
+        func = theano.function([index], self.cost, updates = self.updates, givens = givens)
+        def func2():
+            cost = 0
+            for i in range(n_max):
+                cost += func(i)
+            return cost / float(n_max)
+        return func2
     
     def save(self,fname):
         paramsinit = dict((i,self.__dict__[i]) for i in self.paramsinitkeys)
@@ -676,7 +749,7 @@ class SDAE(object):
             self.layers[i].save(fname+'/Layer'+str(i+1)+'_')
             if not self.tie[i]:
                 self.layersdec[i].save(fname+'/Layerdec'+str(i+1)+'_')
-        if self.aux:
+        if self.auxlayer != None:
             self.auxlayer.save(fname+'/Layeraux_')
         self.outlayer.save(fname+'/Layerout_')
         print 'saved in %s'%fname
@@ -710,7 +783,7 @@ class SDAE(object):
             if self.__dict__[i] != paramscurrent[i]:
                 tmp = True
         if tmp:
-            paramscurrent.pop('aux')
+            self.aux = paramscurrent.pop('aux')
             if paramscurrent['mode'] == 'Sup':
                 paramscurrent.pop('mode')
                 paramscurrent.pop('noise_lvl')
@@ -734,7 +807,7 @@ class SDAE(object):
             self.layers[i].load(fname+'/Layer'+str(i+1)+'_')
             if not self.tie[i]:
                 self.layersdec[i].load(fname+'/Layerdec'+str(i+1)+'_')
-        if self.aux:
+        if self.auxlayer != None:
             self.auxlayer.load(fname+'/Layeraux_')
         self.outlayer.load(fname+'/Layerout_')
         print 'loaded from %s'%fname
@@ -746,7 +819,6 @@ class SDAE(object):
         self.lr = lr
         self.sup_scaling = sup_scaling
         self.unsup_scaling = unsup_scaling
-        self.aux_scaling = None
         self.hessscal = hessscal if self.bbbool else None
         self.update_type = update_type
         self.depth_max = depth_max
@@ -763,6 +835,14 @@ class SDAE(object):
         self.__redefinemodel(1, depth_max,depth_min,noise_lvl,update_type)
         self.__redefinemodel(0, depth_max,depth_max)
         self.__redefinemodel(-1, depth_max,depth_min,update_type=update_type)
+        if self.aux:
+            self.aux_active = self.__checkauxactive()
+            if self.aux_active:
+                self.auxiliary(1, auxdepth = self.auxdepth, auxn_out = self.auxn_out,
+                        aux_scaling = self.aux_scaling, auxregularization = self.auxregularization,
+                        auxlayertype = self.auxlayertype, auxact = self.auxact,
+                        aux_one_sided = self.aux_one_sided,auxwdreg = self.auxwdreg,
+                        Wtmp = self.auxlayer.W, btmp = self.auxlayer.b,afficheb = False)
         self.__definecost()
         if self.bbbool:
             self.__definebbprop()
@@ -775,7 +855,6 @@ class SDAE(object):
         self.lr = lr
         self.sup_scaling = None
         self.unsup_scaling = unsup_scaling
-        self.aux_scaling = None
         self.hessscal = hessscal if self.bbbool else None
         self.update_type = update_type
         self.depth_max = depth_max
@@ -790,6 +869,14 @@ class SDAE(object):
         
         self.__redefinemodel(1, depth_max,depth_min,noise_lvl,update_type)
         self.__redefinemodel(-1, depth_max,depth_min,update_type=update_type)
+        if self.aux:
+            self.aux_active = self.__checkauxactive()
+            if self.aux_active:
+                self.auxiliary(1, auxdepth = self.auxdepth, auxn_out = self.auxn_out,
+                        aux_scaling = self.aux_scaling, auxregularization = self.auxregularization,
+                        auxlayertype = self.auxlayertype, auxact = self.auxact,
+                        aux_one_sided = self.aux_one_sided,auxwdreg = self.auxwdreg,
+                        Wtmp = self.auxlayer.W, btmp = self.auxlayer.b,afficheb = False)
         self.__definecost()
         if self.bbbool:
             self.__definebbprop()
@@ -802,7 +889,6 @@ class SDAE(object):
         self.lr = lr
         self.sup_scaling = sup_scaling
         self.unsup_scaling = None
-        self.aux_scaling = None
         self.hessscal = hessscal if self.bbbool else None
         self.depth_max = depth_max
         self.depth_min = depth_min
@@ -819,6 +905,14 @@ class SDAE(object):
         
         self.__redefinemodel(1, depth_max,0,None,update_type)
         self.__redefinemodel(0, depth_max,depth_min,update_type = update_type)
+        if self.aux:
+            self.aux_active = self.__checkauxactive()
+            if self.aux_active:
+                self.auxiliary(1, auxdepth = self.auxdepth, auxn_out = self.auxn_out,
+                        aux_scaling = self.aux_scaling, auxregularization = self.auxregularization,
+                        auxlayertype = self.auxlayertype, auxact = self.auxact,
+                        aux_one_sided = self.aux_one_sided,auxwdreg = self.auxwdreg,
+                        Wtmp = self.auxlayer.W, btmp = self.auxlayer.b,afficheb = False)
         self.__definecost()
         if self.bbbool:
             self.__definebbprop()
@@ -826,7 +920,10 @@ class SDAE(object):
         self.afficher()
     
     def ModeAux(self,depth_max,update_type = 'global', lr = 0.1, hessscal = 0.001):
-        assert self.aux == True
+        self.depth_max = depth_max
+        self.depth_min = 0
+        self.aux_active = self.__checkauxactive()
+        assert self.aux == True and self.aux_active == True
         self.mode = 'Aux'
         self.lr = lr
         self.sup_scaling = None
@@ -843,10 +940,15 @@ class SDAE(object):
         self.wd = []
         self.sp = []
         
-        self.__redefinemodel(1, depth_max+min(self.auxdepth,0),0,None,update_type)
+        self.__redefinemodel(1, min(depth_max,self.depth + self.auxdepth),0,None,update_type)
         if self.auxdepth>0:
             self.__redefinemodel(-1, depth_max, depth_max-self.auxdepth,None,update_type)
         
+        self.auxiliary(1, auxdepth = self.auxdepth, auxn_out = self.auxn_out,
+                        aux_scaling = self.aux_scaling, auxregularization = self.auxregularization,
+                        auxlayertype = self.auxlayertype, auxact = self.auxact,
+                        aux_one_sided = self.aux_one_sided,auxwdreg = self.auxwdreg,
+                        Wtmp = self.auxlayer.W, btmp = self.auxlayer.b,afficheb = False)
         self.__definecost()
         if self.bbbool:
             self.__definebbprop()
@@ -856,7 +958,8 @@ class SDAE(object):
     def afficher(self):
         paramsaux = []
         wdaux = []
-        if self.aux and (self.update_type != 'special' or self.auxdepth == 0):
+        if self.aux and self.aux_active \
+                    and (self.update_type != 'special' or self.depth+self.auxdepth == self.depth_max):
             paramsaux += self.auxlayer.params
             if self.auxregularization:
                 wdaux += [self.auxregularization*self.auxlayer.wd]
