@@ -348,6 +348,7 @@ class SDAE(object):
                         masktmp = self.layers[i-1].mask
                     else:
                         masktmp = None
+                print i
                 tmp_layers[i] = self.layertype[i](self.rng, self.theano_rng,tmp_inp,tmp_n_inp,
                                     tmp_n_out, self.act[i], noise = self.noise[i],
                                     Winit = Wtmp, binit = btmp, maskinit = masktmp, wdreg = self.wdreg,
@@ -767,6 +768,8 @@ class SDAE(object):
             if self.__dict__[i] != paramsinit[i]:
                 tmp = True
         if tmp:
+            del self.layers
+            del self.layersdec
             paramsinit.update({'inp' : self.inp, 'out' : self.out,\
                                 'rng':self.rng,'theano_rng':self.theano_rng})
             self.__init__(**paramsinit)
@@ -942,7 +945,7 @@ class SDAE(object):
         
         self.__redefinemodel(1, min(depth_max,self.depth + self.auxdepth),0,None,update_type)
         if self.auxdepth>0:
-            self.__redefinemodel(-1, depth_max, depth_max-self.auxdepth,None,update_type)
+            self.__redefinemodel(-1, depth_max, self.depth - self.auxdepth,None,update_type)
         
         self.auxiliary(1, auxdepth = self.auxdepth, auxn_out = self.auxn_out,
                         aux_scaling = self.aux_scaling, auxregularization = self.auxregularization,
@@ -954,6 +957,14 @@ class SDAE(object):
             self.__definebbprop()
         self.__monitorfunction()
         self.afficher()
+    
+    def untie(self):
+        for i in range(self.depth):
+            if self.tie[i] == True:
+                self.tie[i] = False
+                self.layersdec[i].W = theano.shared(value = numpy.asarray(self.layers[i].W.value.T,\
+                                                    dtype = theano.config.floatX),name = 'Wdec%s'%i)
+                print 'layer %s untied, Warning, you need to redefine the mode'%i
     
     def afficher(self):
         paramsaux = []
