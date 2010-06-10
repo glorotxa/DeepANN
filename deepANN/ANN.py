@@ -50,10 +50,10 @@ class DenseLayer(object):
         self.noise_fn = eval(self.noise+"_noise") if self.noise != None else None
         # Weight decay
         self.wdreg = wdreg
-        self.wdreg_fn = eval(self.wdreg+"_reg")
+        self.wdreg_fn = eval(self.wdreg)
         # Sparsity
         self.spreg = spreg
-        self.spreg_fn = eval(self.spreg+"_spar")
+        self.spreg_fn = eval(self.spreg)
         # Units specification
         self.one_sided = False if act in ['tanh','tanhnorm','softsign','arsinh','plc'] else True
         self.maskinit = maskinit
@@ -254,6 +254,7 @@ class SDAE(object):
         self.aux_active = False
         self.auxdepth = None
         self.auxlayertype = None
+        self.auxlayer = None
         self.auxtarget = None
         self.aux_scaling = None
         self.aux_one_sided = None
@@ -624,6 +625,7 @@ class SDAE(object):
             self.aux_active = False
             self.auxdepth = None
             self.auxlayertype = None
+            self.auxlayer = None
             self.auxtarget = None
             self.aux_scaling = None
             self.aux_one_sided = None
@@ -787,19 +789,24 @@ class SDAE(object):
                 tmp = True
         if tmp:
             self.aux = paramscurrent.pop('aux')
-            if paramscurrent['mode'] == 'Sup':
+            fdb = 1
+            if fdb and paramscurrent['mode'] == 'Sup':
+                fdb = 0
                 paramscurrent.pop('mode')
                 paramscurrent.pop('noise_lvl')
                 paramscurrent.pop('unsup_scaling')
                 self.ModeSup(**paramscurrent)
-            if paramscurrent['mode'] == 'Unsup':
+            if fdb and paramscurrent['mode'] == 'Unsup':
+                fdb = 0
                 paramscurrent.pop('mode')
                 paramscurrent.pop('sup_scaling')
                 self.ModeUnsup(**paramscurrent)
-            if paramscurrent['mode'] == 'Mixte':
+            if fdb and paramscurrent['mode'] == 'Mixte':
+                fdb = 0
                 paramscurrent.pop('mode')
                 self.ModeMixte(**paramscurrent)
-            if paramscurrent['mode'] == 'Aux':
+            if fdb and paramscurrent['mode'] == 'Aux':
+                fdb = 0
                 paramscurrent.pop('mode')
                 paramscurrent.pop('noise_lvl')
                 paramscurrent.pop('unsup_scaling')
@@ -1004,7 +1011,7 @@ if __name__ == '__main__':
     
     import pylearn.datasets.MNIST
     import copy
-    
+    theano.config.floatX='float64'
     
     dat = pylearn.datasets.MNIST.full()
     test = theano.shared(value = numpy.asarray((dat.test.x),dtype = theano.config.floatX),name='test')
@@ -1016,12 +1023,13 @@ if __name__ == '__main__':
     del dat
     
     
-   
-    a=SDAE(numpy.random,RandomStreams(),act='tanh',depth=3,one_sided_in=True,n_hid=1000,\
-            regularization=False,sparsity=False,reconstruction_cost='cross_entropy',n_inp= 784,n_out=10,tie=False,maskbool=None)
+    
+    a=SDAE(numpy.random,RandomStreams(),act='rectifier',depth=3,one_sided_in=True,n_hid=1000,\
+            regularization=False,sparsity=0.00001,spreg = 'l1_target(0.5)',\
+            reconstruction_cost='quadratic',n_inp=784,n_out=10,tie=False,maskbool=1)
     
     def training(a,train,trainl,test,testl,maxi = 2,b=False):
-        g,n = a.trainfunctionbatch(train = train,trainl=trainl,batchsize=10)
+        g,n = a.trainfunctionbatch(data = train,datal=trainl,batchsize=10)
         if b:
             f = a.errorfunction(data=test,datal=testl)
         else:
@@ -1033,26 +1041,19 @@ if __name__ == '__main__':
                 print g(i), 'epoch:', epoch, 'err:',err , i
             epoch += 1
             err = f()
-        train.value = train.value[numpy.random.permutation(train.value.shape[0]),:]
+        neworder = numpy.random.permutation(train.value.shape[0])
+        train.value = train.value[neworder,:]
+        trainl.value = trainl.value[neworder]
     
-    a.ModeUnsup(1,0,0.25,'global',lr=0.01)
-    training(a,train,trainl,test,testl,maxi = 1)
+    #a.ModeUnsup(1,0,0.25,'global',lr=0.01)
+    #training(a,train,trainl,test,testl,maxi = 100)
     
-    a.ModeMixte(1,0,0.25,'global',lr=0.01,sup_scaling = 2.)
-    training(a,train,trainl,test,testl,maxi = 5,b=True)
+    #a.ModeUnsup(2,1,0.25,'global',lr=0.01)
+    #training(a,train,trainl,test,testl,maxi = 100)
     
-    a.ModeUnsup(2,1,0.25,'global',lr=0.01)
-    training(a,train,trainl,test,testl,maxi = 2)
+    #a.ModeUnsup(3,2,0.25,'global',lr=0.01)
+    #training(a,train,trainl,test,testl,maxi = 100)
     
-    a.ModeMixte(2,0,0.25,'global',lr=0.01,sup_scaling = 2.)
-    training(a,train,trainl,test,testl,maxi = 5,b=True)
-    
-    a.ModeUnsup(3,2,0.25,'global',lr=0.01)
-    training(a,train,trainl,test,testl,maxi = 3)
-    
-    a.ModeMixte(3,0,0.25,'global',lr=0.01,sup_scaling = 2.)
-    training(a,train,trainl,test,testl,maxi = 5,b=True)
-    
-    a.ModeSup(3,3,'global',lr=0.05)
-    training(a,train,trainl,test,testl,maxi = 50,b=True)
+    a.ModeSup(3,3,'global',lr=0.1)
+    training(a,train,trainl,test,testl,maxi = 5000,b=True)
     

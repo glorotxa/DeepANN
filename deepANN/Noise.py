@@ -10,4 +10,4 @@ import theano
 import theano.tensor as T
 
 def binomial_noise(theano_rng,inp,noise_lvl):
-    return theano_rng.binomial( size = inp.shape, n = 1, prob =  1 - noise_lvl) * inp
+    return theano_rng.binomial( size = inp.shape, n = 1, p =  1 - noise_lvl) * inp

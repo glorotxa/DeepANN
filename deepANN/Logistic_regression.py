@@ -51,7 +51,7 @@ class LogisticRegression(object):
     points onto a set of hyperplanes, the distance to which is used to 
     determine a class membership probability. 
     """
-    def __init__(self,rng, inp, n_inp, n_out, wdreg = 'l2',maskbool = False, Winit = None, binit = None):
+    def __init__(self,rng, inp, n_inp, n_out, wdreg = 'l2',upmaskbool = False, Winit = None, binit = None):
         """ Initialize the parameters of the logistic regression
 
         :type input: theano.tensor.TensorType
@@ -69,20 +69,24 @@ class LogisticRegression(object):
         """ 
         self.inp = inp
         self.n_out = n_out
-        self.n_in = n_inp
+        self.n_inp = n_inp
         # initialize with 0 the weights W as a matrix of shape (n_in, n_out)
+        allocW = False
         if Winit == None:
             wbound = numpy.sqrt(6./(n_inp+n_out))
             W_values = numpy.asarray( rng.uniform( low = -wbound, high = wbound, \
                                         size = (n_inp, n_out)), dtype = theano.config.floatX)
             self.W = theano.shared(value = W_values, name = 'W')
+            allocW = True
         else:
             self.W = Winit
         
         # initialize the baises b as a vector of n_out 0s
+        allocb = False
         if binit == None:
             self.b = theano.shared(value=numpy.zeros((n_out,), dtype = theano.config.floatX),\
                                                     name='b')
+            allocb = True
         else:
             self.b = binit
         self.lin = T.dot(self.inp, self.W)+self.b
@@ -95,14 +99,23 @@ class LogisticRegression(object):
         # symbolic form
         self.y_pred=T.argmax(self.p_y_given_x, axis=1)
         self.wdreg = wdreg
-        self.wdreg_fn = eval(wdreg+'_reg')
+        self.wdreg_fn = eval(wdreg)
         # parameters of the model
         self.params = [self.W, self.b]
         self.wd = self.wdreg_fn(self.W)
-        self.maskbool = maskbool
-        if self.maskbool:
+        self.upmaskbool = upmaskbool
+        if self.upmaskbool:
             self.updatemaskinit()
-
+        print '\t\t**** Logistic_regression.__init__ ****'
+        print '\t\tinp = ', inp
+        print '\t\tn_inp = ', self.n_inp
+        print '\t\tn_out = ', self.n_out
+        print '\t\tout = ', self.out
+        print '\t\tparams (gradients) = ', self.params
+        print '\t\twdreg (weigth decay) = ', self.wdreg
+        print '\t\tupmaskbool = ', self.upmaskbool
+        print '\t\tallocW, allocb = ', allocW, allocb
+    
     def cost(self, y):
         """Return the mean of the negative log-likelihood of the prediction
         of this model under a given target distribution.
@@ -151,7 +164,7 @@ class LogisticRegression(object):
             raise NotImplementedError()
     
     def updatemaskinit(self):
-        self.W_upmask = theano.shared(value= numpy.ones((self.n_in, self.n_out),\
+        self.W_upmask = theano.shared(value= numpy.ones((self.n_inp, self.n_out),\
                         dtype= theano.config.floatX), name = 'W_fact')
         self.b_upmask = theano.shared(value= numpy.ones((self.n_out,),\
                         dtype= theano.config.floatX), name = 'b_fact')
@@ -164,3 +177,23 @@ class LogisticRegression(object):
         self.dict_bbprop.update({self.b_upmask:T.sum(self.lin_bbprop,0)})
         self.dict_bbprop.update({self.W_upmask:T.dot(T.transpose(self.inp*self.inp),self.lin_bbprop)})
         return T.dot(self.lin_bbprop,T.transpose(self.W * self.W)), self.dict_bbprop
+    
+    def save(self,path):
+        f = open(path+'W.pkl','w')
+        cPickle.dump(self.W.value,f)
+        f.close()
+        print self.W, 'saved in %s'%(path+'W.pkl')
+        f = open(path+'b.pkl','w')
+        cPickle.dump(self.b.value,f)
+        f.close()
+        print self.b, 'saved in %s'%(path+'b.pkl')
+    
+    def load(self,path):
+        f = open(path+'W.pkl','r')
+        self.W.value = cPickle.load(f)
+        f.close()
+        print self.W, 'loaded from %s'%(path+'W.pkl')
+        f = open(path+'b.pkl','r')
+        self.b.value = cPickle.load(f)
+        f.close()
+        print self.b, 'loaded from %s'%(path+'b.pkl')

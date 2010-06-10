@@ -15,23 +15,26 @@ def tanh_act(x):
 def tanhnorm_act(x): #@TO DO:cross-entropy pending
     return 1.759*theano.tensor.tanh(0.6666*x)
 
-def abstanh_act(): #@TO DO:cross-entropy pending
+def abstanh_act(x): #@TO DO:cross-entropy pending
     return theano.tensor.abs_(theano.tensor.tanh(x))
 
-def abstanhnorm_act(): #@TO DO:cross-entropy pending
+def abstanhnorm_act(x): #@TO DO:cross-entropy pending
     return theano.tensor.abs_(1.759*theano.tensor.tanh(0.6666*x))
 
 def softsign_act(x):
     return x/(1.0 + T.abs_(x))
 
-def abssoftsign_act():
+def abssoftsign_act(x):
     return T.abs_(x)/(1.0 + T.abs_(x))
 
 def rectifier_act(x):
     return x*(x>=0)
 
 def softplus_act(x): #@TO DO: rescale in order to have a steady state regime close to 0 at init.
-    return T.log(1+T.exp(x))
+    return theano.tensor.nnet.softplus(x)
+
+def abs_act(x):
+    return theano.tensor.abs_(x)
 
 # @TO TEST---------------------------------------------------------------------
 def arsinh_act(x):
@@ -46,8 +49,11 @@ def plc_act(x): #imposed symmetry not good
 def pascalv_act(x): 
     return T.log(1+T.abs_(x))
 
-def neuronlike_act(x):#@TO DO
-    pass
+def neuronlike_act(x):
+    return theano.tensor.tanh(x)*(x>=0)
+
+def neuronlike2_act(x):
+    return (x>0)/(7.5*T.log((0.5*x*(x>0)+0.0250)/(0.5*x*(x>0)+0.0250*(x<=0)))+1)
 
 
 #----------------------------------------------------------------- derivated function
@@ -69,7 +75,7 @@ def abstanh_der(x): #@TO DO:cross-entropy pending
     y = theano.tensor.tanh(x)
     return T.sgn(y) * (1 - y*y)
 
-def abstanhnorm_der(): #@TO DO:cross-entropy pending
+def abstanhnorm_der(x): #@TO DO:cross-entropy pending
     y = theano.tensor.tanh(0.6666*x)
     return T.sgn(y) * 1.759 * 0.6666 * (1-y*y)
 
@@ -85,6 +91,9 @@ def rectifier_der(x):
 def softplus_der(x): #@TO DO: rescale in order to have a steady state regime close to 0 at init.
     return theano.tensor.nnet.sigmoid(x)
 
+def abs_der(x):
+    return T.sgn(x)
+
 # @TO TEST---------------------------------------------------------------------
 def arsinh_der(x):
     y = T.sqrt(1+x*x)
@@ -99,6 +108,11 @@ def plc_der(x): #imposed symmetry not good
 def pascalv_der(x):
     return (1.0 + T.sgn(x)) / (x + T.abs_(x))
 
-def neuronlike_der(x):#@TO DO
-    pass
+def neuronlike_der(x):
+    y = theano.tensor.tanh(x)
+    return (1 - y*y)*(x>=0)
+
+def neuronlike2_der(x):
+    pass #TODO
+
 
