@@ -156,15 +156,15 @@ class DenseLayer(object):
     
     def save(self,path):
         f = open(path+'W.pkl','w')
-        cPickle.dump(self.W.value,f)
+        cPickle.dump(self.W.value,f,-1)
         f.close()
         print self.W, 'saved in %s'%(path+'W.pkl')
         f = open(path+'b.pkl','w')
-        cPickle.dump(self.b.value,f)
+        cPickle.dump(self.b.value,f,-1)
         f.close()
         print self.b, 'saved in %s'%(path+'b.pkl')
         f = open(path+'mask.pkl','w')
-        cPickle.dump(self.mask.value,f)
+        cPickle.dump(self.mask.value,f,-1)
         f.close()
         print self.mask, 'saved in %s'%(path+'mask.pkl')
     
@@ -738,9 +738,9 @@ class SDAE(object):
         paramscurrent = dict((i,self.__dict__[i]) for i in self.paramscurrentkeys)
         paramsaux = dict((i,self.__dict__[i]) for i in self.paramsauxkeys)
         f = open(fname+'/params.pkl','w')
-        cPickle.dump(paramsinit,f)
-        cPickle.dump(paramscurrent,f)
-        cPickle.dump(paramsaux,f)
+        cPickle.dump(paramsinit,f,-1)
+        cPickle.dump(paramscurrent,f,-1)
+        cPickle.dump(paramsaux,f,-1)
         f.close()
         print 'params.pkl saved in %s'%fname
         
