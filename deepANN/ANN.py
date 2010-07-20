@@ -1,18 +1,14 @@
 import numpy, time, cPickle, gzip
-
 import os
-
 import theano
 import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
-
 from Activations import *
 from Noise import *
 from Regularization import *
 from Reconstruction_cost import *
 
 from Logistic_regression import LogisticRegression
-
 
 
 class DenseLayer(object):
@@ -929,7 +925,7 @@ class SDAE(object):
         self.__monitorfunction()
         self.afficher()
     
-    def ModeAux(self,depth_max,update_type = 'global', lr = 0.1, hessscal = 0.001):
+    def ModeAux(self,depth_max,update_type = 'global', lr = 0.1, hessscal = 0.001, noise_lvl = None):
         self.depth_max = depth_max
         self.depth_min = 0
         self.aux_active = self.__checkauxactive()
@@ -942,7 +938,7 @@ class SDAE(object):
         self.hessscal = hessscal if self.bbbool else None
         self.depth_max = depth_max
         self.update_type = update_type
-        self.noise_lvl = None
+        self.noise_lvl = noise_lvl
         
         self.params = []
         self.upmask = []
@@ -950,7 +946,7 @@ class SDAE(object):
         self.wd = []
         self.sp = []
         
-        self.__redefinemodel(1, min(depth_max,self.depth + self.auxdepth),0,None,update_type)
+        self.__redefinemodel(1, min(depth_max,self.depth + self.auxdepth),depth_max-1,update_type)
         if self.auxdepth>0:
             self.__redefinemodel(-1, depth_max, self.depth - self.auxdepth,None,update_type)
         

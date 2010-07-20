@@ -33,13 +33,13 @@ def abstanhnorm_cross_entropy(target, output_act, ddXE):
 
 def cross_entropy_cost(target, output, output_act, in_sided, out_sided, in_bounded, out_bounded, act):
     assert in_bounded
-    assert out_bounded
+    #assert out_bounded
     scale_bb = 1.
     if in_bounded != 1.:
         target = target / in_bounded
-    if out_bounded != 1.:
-        output = output / out_bounded
-        scale_bb = 1. / out_bounded
+    #if out_bounded != 1.:
+    #    output = output / out_bounded
+    #    scale_bb = 1. / out_bounded
     if not in_sided:
         target = (target+1)/(2.0)
     if not out_sided:
@@ -63,8 +63,8 @@ def cross_entropy_cost(target, output, output_act, in_sided, out_sided, in_bound
         return [[-T.mean(T.sum(XE, axis=1),axis=0)] , ddXE]
 
 def quadratic_cost(target, output, output_act, in_sided, out_sided, in_bounded, out_bounded, act ):
-    #if in_sided == True:
-    #    assert out_sided == True
+    if in_sided == True:
+        assert out_sided == True
     #@TO THINK: previous case not critical, but does it really make sense?
     if out_sided == True:
         assert in_sided == True
