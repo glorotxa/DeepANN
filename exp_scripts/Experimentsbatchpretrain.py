@@ -1,3 +1,10 @@
+#
+# This support 4 dataset for now: MNIST, CIFAR10, ImageNet and shapesetbatch.
+# for shapeset you need pygame and http://github.com/glorotxa/Shapeset
+
+
+
+
 import numpy
 
 import time
@@ -14,10 +21,6 @@ import time
 import pylearn.datasets.MNIST
 
 from deepANN.ANN import *
-
-from buildfeaturespolygon import buildimage,buildedges,builddepthmap,buildidentity,buildsegmentation,output,buildedgesanglec
-from polygongen import Polygongen
-from curridata import Curridata as Curridatacreate
 
 def createcurridata(state,seed,batchsize):
     if batchsize == None:
@@ -96,6 +99,10 @@ def loaddata(state):
         valid=theano.shared(numpy.asarray(load_mat('Cifar10valid.ft','/home/glorotxa/data/')/255.0,dtype=theano.config.floatX),name='valid')
         validl=theano.shared(numpy.asarray(load_mat('Cifar10validl.ft','/home/glorotxa/data/'),dtype='int32'),name='validl')
     elif state.dat == 'shapesetbatch':
+        from buildfeaturespolygon import buildimage,buildedges,builddepthmap,buildidentity,buildsegmentation,output,buildedgesanglec
+        from polygongen import Polygongen
+        from curridata import Curridata as Curridatacreate
+
         state.in_size = 32*32
         state.n_out = 9
         curridatatrain=createcurridata(state,1,100000)
@@ -141,6 +148,9 @@ def pretraining(state,channel):
     return channel.COMPLETE
    
 def finetuning(state,channel):
+    import theano,pylearn.version,deepANN
+    pylearn.version.record_versions(state,[theano,pylearn,deepANN])
+    
     test,testl,valid,validl,train,trainl = loaddata(state)
     
     numpy.random.seed(state.seed)
@@ -162,11 +172,15 @@ def finetuning(state,channel):
     state.bestvalidct = 0
     print 'finetuning'
     #finetuning
+    test_err = []
+    valid_err = []
     for i in range(state.nbepochs_sup):
         for j in range(n):
             dum = trainfunc(j)
         state.testerr = testfunc()
         state.validerr = validfunc()
+        test_err.append(state.testerr)
+        valid_err.append(state.validerr)
         if state.testerr < state.besttesterr:
             state.besttesterr = state.testerr
             state.besttesterrct = i+1
@@ -180,4 +194,9 @@ def finetuning(state,channel):
         train.value = train.value[neworder,:]
         trainl.value = trainl.value[neworder]
         channel.save()
+        test_f = open("err.pkl",'w')
+        cPickle.dump(("test_error","valid_error"),test_f,-1)
+        cPickle.dump(test_err,test_f,-1)
+        cPickle.dump(valid_err,test_f,-1)
+        test_f.close()
     return channel.COMPLETE
