@@ -1,4 +1,7 @@
-from ANN import *
+try:
+    from ANN import *
+except ImportError:
+    from deepANN.ANN import *
 import cPickle
 import os
 import time
@@ -36,6 +39,11 @@ model.ModeAux(depth,update_type='special',noise_lvl=noise,lr=lr)
 g1,n = model.trainfunctionbatch(train,trainl,train, batchsize=batchsize)
 tes = model.costfunction(train,trainl,train, batchsize=100)
 
+STRANGE_MEMORY_TMP_FIX = False
+
+if STRANGE_MEMORY_TMP_FIX:
+    train_gpu_ptr = train.container.storage[0]
+
 print tes()
 
 for cc in range(nepochs):
@@ -43,7 +51,13 @@ for cc in range(nepochs):
     for p in xrange(14,16):
         time2 = time.time()
         f =open('/u/glorotxa/work/NLP/DARPAproject/NEC/OpenTable5000_train_%s.pkl'%p,'r')
-        train.value = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
+        if STRANGE_MEMORY_TMP_FIX:
+            data = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
+            train_gpu_ptr[0:data.shape[0],:] = data
+            train.container.storage[0] = train_gpu_ptr[0:data.shape[0],:]
+            assert train.container.storage[0].shape == data.shape
+        else:
+            train.value = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
         f.close()
         f =open('/u/glorotxa/work/NLP/DARPAproject/NEC/OpenTable5000_trainl_%s.pkl'%p,'r')
         trainl.value = cPickle.load(f)
