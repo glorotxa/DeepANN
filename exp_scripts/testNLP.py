@@ -1,4 +1,4 @@
-from ANN import *
+from deepANN.ANN import *
 import cPickle
 import copy, os
 from pylearn.io import filetensor
@@ -19,11 +19,11 @@ batchsize = 16
 
 
 f =open('/u/glorotxa/work/NLP/DARPAproject/NEC/OpenTable5000_train_1.pkl','r')
-train = T.shared(numpy.asarray(cPickle.load(f),dtype=theano.config.floatX))
+train = theano.shared(numpy.asarray(cPickle.load(f),dtype=theano.config.floatX))
 print train.value.dtype
 f.close()
 f =open('/u/glorotxa/work/NLP/DARPAproject/NEC/OpenTable5000_trainl_1.pkl','r')
-trainl =T.shared(cPickle.load(f),name = 'trainl')
+trainl = theano.shared(cPickle.load(f),name = 'trainl')
 f.close()
 
 #dat = pylearn.datasets.MNIST.full()
@@ -37,7 +37,7 @@ model.ModeAux(depth,update_type='special',noise_lvl=noise,lr=lr)
 
 
 g1,n = model.trainfunctionbatch(train,trainl,train, batchsize=batchsize)
-tes = model.costfunction(train,trainl,train, batchsize=100)
+tes = model.costfunction(train,trainl,train, batchsize=1000)
 
 for cc in range(nepochs):
     for p in xrange(1,16):
