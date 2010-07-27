@@ -4,6 +4,7 @@ This script define the different symbolic reconstruction cost function
 
 """
 import theano.tensor as T
+import theano
 
 # costs utils:---------------------------------------------------
 # in order to fix numerical instability of the cost and gradient calculation for the cross entropy we calculate it
@@ -47,6 +48,7 @@ def cross_entropy_cost(target, output, output_act, in_sided, out_sided, in_bound
         scale_bb = scale_bb / 2.
     ddXE = target * scale_bb * 1./(output * output) + (1 - target) * scale_bb * 1./((1 - output) * (1-output))
     ddXE /= T.shape(ddXE)[0]
+    ddXE = T.cast(ddXE,dtype=theano.config.floatX)
     if act in ['sigmoid','tanh','tanhnorm','abstanh','abstanhnorm']:
         if act == 'sigmoid':
             return sigmoid_cross_entropy(target, output_act,ddXE)

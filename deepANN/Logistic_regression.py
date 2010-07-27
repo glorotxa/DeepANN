@@ -159,6 +159,7 @@ class LogisticRegression(object):
         if y.dtype.startswith('int'):
             # the T.neq operator returns a vector of 0s and 1s, where 1
             # represents a mistake in prediction
+            return T.cast(T.mean(T.neq(self.y_pred, y)),theano.config.floatX)
             return T.mean(T.neq(self.y_pred, y))
         else:
             raise NotImplementedError()
