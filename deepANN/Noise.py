@@ -14,5 +14,8 @@ def binomial_noise(theano_rng,inp,noise_lvl):
 
 
 def binomial_NLP_noise(theano_rng,inp,noise_lvl):
-    return theano_rng.binomial( size = inp.shape, n = 1, p =  1 - noise_lvl[0]) * inp + (inp==0) * theano_rng.binomial( size =
-inp.shape, n = 1, p =  noise_lvl[1])
+    return theano_rng.binomial( size = inp.shape, n = 1, p =  1 - noise_lvl[0]) * inp \
+                        + (inp==0) * theano_rng.binomial( size = inp.shape, n = 1, p =  noise_lvl[1])
+
+def gaussian_noise(theano_rng,inp,noise_lvl):
+    return theano_rng.normal( size = inp.shape, avg=inp, std = noise_lvl, dtype=theano.config.floatX)
