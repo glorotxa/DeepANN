@@ -156,15 +156,15 @@ class DenseLayer(object):
     
     def save(self,path):
         f = open(path+'W.pkl','w')
-        cPickle.dump(self.W.value,f,-1)
+        cPickle.dump(self.W.value,f)
         f.close()
         print self.W, 'saved in %s'%(path+'W.pkl')
         f = open(path+'b.pkl','w')
-        cPickle.dump(self.b.value,f,-1)
+        cPickle.dump(self.b.value,f)
         f.close()
         print self.b, 'saved in %s'%(path+'b.pkl')
         f = open(path+'mask.pkl','w')
-        cPickle.dump(self.mask.value,f,-1)
+        cPickle.dump(self.mask.value,f)
         f.close()
         print self.mask, 'saved in %s'%(path+'mask.pkl')
     
@@ -345,7 +345,6 @@ class SDAE(object):
                         masktmp = self.layers[i-1].mask
                     else:
                         masktmp = None
-                print i
                 tmp_layers[i] = self.layertype[i](self.rng, self.theano_rng,tmp_inp,tmp_n_inp,
                                     tmp_n_out, self.act[i], noise = self.noise[i],
                                     Winit = Wtmp, binit = btmp, maskinit = masktmp, wdreg = self.wdreg,
@@ -738,9 +737,9 @@ class SDAE(object):
         paramscurrent = dict((i,self.__dict__[i]) for i in self.paramscurrentkeys)
         paramsaux = dict((i,self.__dict__[i]) for i in self.paramsauxkeys)
         f = open(fname+'/params.pkl','w')
-        cPickle.dump(paramsinit,f,-1)
-        cPickle.dump(paramscurrent,f,-1)
-        cPickle.dump(paramsaux,f,-1)
+        cPickle.dump(paramsinit,f)
+        cPickle.dump(paramscurrent,f)
+        cPickle.dump(paramsaux,f)
         f.close()
         print 'params.pkl saved in %s'%fname
         
@@ -946,7 +945,7 @@ class SDAE(object):
         self.wd = []
         self.sp = []
         
-        self.__redefinemodel(1, min(depth_max,self.depth + self.auxdepth),depth_max-1,update_type)
+        self.__redefinemodel(1, min(depth_max,self.depth + self.auxdepth),depth_max-1,noise_lvl,update_type)
         if self.auxdepth>0:
             self.__redefinemodel(-1, depth_max, self.depth - self.auxdepth,None,update_type)
         
