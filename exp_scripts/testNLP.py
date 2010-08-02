@@ -28,8 +28,8 @@ trainl = theano.shared(cPickle.load(f),name = 'trainl')
 f.close()
 
 
-model=SDAE(numpy.random,RandomStreams(),depth,True,act=act,n_hid=n_hid,n_out=5,sparsity=l1,n_inp=5000,noise='binomial',tie=False)
-model.auxiliary(1,0,2500)
+model=SDAE(numpy.random,RandomStreams(),depth,True,act=act,n_hid=n_hid,n_out=5,sparsity=l1,n_inp=5000,noise='binomial_NLP',tie=False)
+model.auxiliary(1,0,5000)
 model.ModeAux(depth,update_type='special',noise_lvl=noise,lr=lr)
 
 #model.layers[0].W.value = cPickle.load(open('/u/glorotxa/depth2ronan/Layer1_W.pkl','r'))
