@@ -11,6 +11,41 @@ from Reconstruction_cost import *
 
 from Logistic_regression import LogisticRegression
 
+"""
+CONVENTIONS:
+
+    * one_sided is True means that the range of values is non-negative.
+
+    * bounded is True means that the range of values is bounded to [-1, +1].
+
+    * depth = 1 means there is one encoding layer.
+
+    * update_type: 'global', 'local', or 'special'.
+        * For ModeSup, 'local' means update only the parameters of the
+        supervised layer (from the supervised features to the supervised
+        prediction).
+        * For ModeUnsup, 'local' means update only the parameters for the
+        depth_max encoding and decoding depth-1 paths.
+        * For ModeAux, 'local' means update only the parameters of the
+        auxiliary layer. In this way, it is similar to ModeSup. TODO:
+        Make 'local' for ModeAux have the same semantics as 'local'
+        for ModeUnsup. Or, look below for a better idea.
+        * 'global' means update all parameters from the input through
+        the final output, in terms of the cost (which could be a mixture
+        of reconstruction and/or supervised and/or auxiliary).
+        * 'special' is used only in ModeAux. It means update only the
+        parameters of the auxiliary layer, as well as the parameters
+        of the encoding layer just below it. It is similar to 'local'
+        for ModeUnsup.
+
+        TODO: Three types of update_types: 'global', 'lastlayer',
+        'lasttwolayers'. 'lasttwolayers' is not permitted for ModeUnsup.
+        'lastlayer' is not permitted for ModeAux, because the auxiliary
+        task is defined only to help train the actual model. (If we want
+        to use an auxiliary layer to test the features at some layer,
+        we should just define a ModeSup for the test task.)
+"""
+
 
 class DenseLayer(object):
     """ Generalized Dense Layer class """
@@ -141,6 +176,9 @@ class DenseLayer(object):
         return self.out
     
     def updatemaskinit(self): #create update mask (used for bbprop)
+        """
+        This is not used. See the note above about bbprop by LeCun.
+        """
         self.W_upmask = theano.shared(value= numpy.ones((self.n_inp, self.n_out),\
                         dtype= theano.config.floatX), name = 'W_fact'+self.tag)
         self.b_upmask = theano.shared(value= numpy.ones((self.n_out,),\
@@ -148,6 +186,9 @@ class DenseLayer(object):
         self.upmask = [self.W_upmask, self.b_upmask]
     
     def bbprop(self,outgrad): #symbolic bbprop declaration
+        """
+        This is not used. See the note above about bbprop by LeCun.
+        """
         self.act_der = eval(self.act + '_der')
         self.lin_bbprop = outgrad * self.act_der(self.lin) * self.act_der(self.lin)
         self.dict_bbprop = {}
@@ -156,6 +197,10 @@ class DenseLayer(object):
         return T.dot(self.lin_bbprop,T.transpose(self.W * self.W)),self.dict_bbprop
     
     def save(self,path):
+        """
+        NOTE: This only saves the current parameters, for whatever Theano
+        graph we are currently working with.
+        """
         f = open(path+'W.pkl','w')
         cPickle.dump(self.W.value,f,-1)
         f.close()
@@ -170,6 +215,10 @@ class DenseLayer(object):
         print self.mask, 'saved in %s'%(path+'mask.pkl')
     
     def load(self,path):
+        """
+        NOTE: This only loads the current parameters, for whatever Theano
+        graph we are currently working with.
+        """
         f = open(path+'W.pkl','r')
         self.W.value = cPickle.load(f)
         f.close()
@@ -190,7 +239,23 @@ class DenseLayer(object):
 #-----------------------------------------------------------------------------------
 
 class SDAE(object):
-    """ Generalized Denoising Autoencoder class"""
+    """
+    Generalized Denoising Autoencoder class
+
+    The class is flexible, insofar as it allows a variety of different
+    paths through which the reconstruction error can be computed (and
+    used for updates). Look at ModeUnsup for more information.
+
+    Denoising auto-encoder variables are stored throughout calls.
+
+    However, ModeSup will overwrite the previous supervised layer
+    (unless it is called with identical depth_max and depth_min as
+    the last ModeSup invokation, in which case the supervised layer is
+    not changed.)
+
+    You can, for example, call ModeUnsup then ModeSup then ModeUnsup,
+    and the last ModeUnsup will not touch the supervised layer.
+    """
     def __init__(self, rng, theano_rng, depth , one_sided_in, inp = None, n_inp = 1, n_hid = 1,
             layertype = DenseLayer, act = "tanh" , noise = "binomial", tie = True, maskbool = None,
             n_out = 1, out = None, outtype = LogisticRegression, regularization = False,
@@ -199,22 +264,29 @@ class SDAE(object):
             ***rng : numpy.random object
             ***theano_rng : theano shared random stream object
             ***depth : Number of hidden layers
-            ***inp : theano symbolic variable for the input of the network (if None: created)
+            ***one_sided_in: The input is one-sided or not.
+            ***inp : theano symbolic variable for the input of the network
+            (if None: created)
             ***n_inp : nb of inputs
-            ***n_hid : nb of units per layer (or a vector of length depth if different sizes)
+            ***n_hid : nb of units per layer (or a vector of length
+            depth if different sizes)
             ***layertype : Layerclass to be used (or a list if different)
             ***act : activation [available in Activation.py] (or a list if different)
             ***noise : noise [available in Noise.py] (or a list if different)
-            ***tie : boolean, if true shared weights (or a list if different)
-            ***maskbool : if None 1s mask, if 1 random mask (-1 1) (or a list if different)
-            ***n_out : nb of outputs units
+            ***tie : boolean, if true shared weights for encoder and
+            corresponding decoder (or a list if different tie value for
+            each layer).
+            ***maskbool : if None 1s mask, if 1 random mask (-1 1)
+            (or a list if different)
+            ***n_out : nb of outputs units for the supervised layer.
             ***out : theano symbolic variable for the output of the network (if None: created)
             ***outtype : outlayer class
             ***regularization : regularisation coefficient or false if not (or a list if different)
             ***spasity : sparsity coefficient or false if not (or a list if different)
             ***wdreg : weights decay regularization [available in Regularisation.py]
             ***spreg : sparsity of the code regularization [available in Regularisation.py]
-            ***reconstruction_cost : cost of reconstruction (quadratic or cross-entropy or scaled)
+            ***reconstruction_cost : cost of reconstruction (quadratic
+            or cross-entropy or scaled)
         """
         self.one_sided_in = one_sided_in #very important for cross entropy reconstruction.
         self.inp = inp if inp != None else T.matrix('inp')
@@ -226,7 +298,7 @@ class SDAE(object):
         self.depth = depth
         self.n_inp = n_inp
         self.n_hid = self.__listify(n_hid,self.depth)
-        self.n_out = n_out
+       self.n_out = n_out
         # Layer specific
         self.layertype = self.__listify(layertype,self.depth)
         self.act = self.__listify(act,self.depth)
@@ -281,8 +353,12 @@ class SDAE(object):
             return [x]*length
     
     def __redefinemodel(self,direction,depth_max,depth_min=0,noise_lvl=0.,update_type = 'global'):
-        """ This function redefine the SDAE or the supervised model (i.e the added noise level
+        """ This function redefine the Theano symbolic variables of the
+            SDAE or the supervised model (i.e the added noise level
             and the last encoding layer until which to propagate)
+
+            TODO: Rename direction to "encoding", "supervised", "decoding"
+
             ***direction : 1 for encoding path, 0 for supervised layer, -1 for decoding path
             ***depth_max : last encoding layer (before decoding) or last input to supervised layer
             ***depth_min : layer at which you add noise in the input
@@ -411,6 +487,9 @@ class SDAE(object):
             print '\t---- Output Layer ----'
             Winit = None
             binit = None
+            # If the previous graph with an outlayer and it has the
+            # same depth_max and depth_min (see ModeSup), then we store
+            # the weights of the previous outlayer.
             if hasattr(self,'outlayer') and self.outlayerdepth == (depth_max,depth_min):
                 Winit = self.outlayer.W
                 binit = self.outlayer.b
@@ -473,6 +552,10 @@ class SDAE(object):
         self.updates = dict((p, p - self.lr * g) for p, g in zip(self.params+paramsaux, self.grad))
     
     def __definebbprop(self):
+        """
+        This is currently unused. It is the second-order method of Yann LeCun.
+        It is pretty slow and not all paths are well-tested.
+        """
         ParamHess = {}
         bb_tmp = 0
         if self.mode != 'Aux':
@@ -584,8 +667,18 @@ class SDAE(object):
     def auxiliary(self, init, auxdepth, auxn_out, aux_scaling=1., auxregularization = False,
             auxlayertype = DenseLayer, auxact = 'sigmoid', aux_one_sided = True,
             auxwdreg = 'l2', Wtmp = None, btmp = None,afficheb = True):
-        """ This initialize an auxiliary target in the network only used in Mixte or Unsup Mode
+        """ This creates an auxiliary target layer in the network.
+
+            It will overwrite the old self.auxlayer, unless you pass the
+            old Wtmp and btmp values. If you don't pass these values,
+            the weights and biases will be initialized.
+
             ***init : if 1 initialize the auxtarget, if 0 delete previous auxtarget
+            ***auxdepth : When it is 0, put the auxlayer on the top of
+            the encoding path. -1 is one layer below the top. TODO:
+            Use consistent names for layer depth (like max_depth in
+            other functions)?
+            ***auxn_out : The number of output units.
             ***auxlayer : a layer object already initialized with the good input given
             ***aux_one_sided : true if the auxtarget is one_sided
             ***auxregularization : weights decay regularisation value for the aux layer
@@ -639,6 +732,21 @@ class SDAE(object):
             self.afficher()
     
     def trainfunctionbatch(self,data,datal=None,aux = None,batchsize = 10):
+        """
+        Return the Theano training (update) function, as well as the
+        number of minibatches.
+
+        data = unlabelled training data.
+        datal = labels of training data.
+
+        We actually pass in data and datal, which are shared variables,
+        so they can be stored on the GPU upfront.
+
+        TODO: Rename to x and y, throughout?
+
+        For mode = "Sup" or "Mixte", we use the labels.
+        For auxiliary mode and "Unsup", we don't use the labels.
+        """
         # compute number of minibatches for training
         if type(data) is list:
             n_max = data[0].value.shape[0] / batchsize
@@ -734,6 +842,10 @@ class SDAE(object):
         return func2
     
     def save(self,fname):
+        """
+        NOTE: This only loads the current parameters, for whatever Theano
+        graph we are currently working with.
+        """
         paramsinit = dict((i,self.__dict__[i]) for i in self.paramsinitkeys)
         paramscurrent = dict((i,self.__dict__[i]) for i in self.paramscurrentkeys)
         paramsaux = dict((i,self.__dict__[i]) for i in self.paramsauxkeys)
@@ -754,6 +866,10 @@ class SDAE(object):
         print 'saved in %s'%fname
     
     def load(self,fname):
+        """
+        NOTE: This only loads the current parameters, for whatever Theano
+        graph we are currently working with.
+        """
         f = open(fname+'/params.pkl','r')
         paramsinit = cPickle.load(f)
         paramscurrent = cPickle.load(f)
@@ -818,8 +934,141 @@ class SDAE(object):
         self.outlayer.load(fname+'/Layerout_')
         print 'loaded from %s'%fname
     
+    def ModeUnsup(self,depth_max,depth_min=0,noise_lvl=None,update_type = 'global',
+                        lr = 0.1, unsup_scaling = 1., hessscal = 0.001):
+        """
+        Redefine the symbolic variables in the [something] Theano graph
+        of this class. This is the Theano graph for performing training.
+
+        WARNING: After you call this function, you MUST call
+        trainfunctionbatch. Otherwise, you will have a stale Theano graph.
+
+        NOTE: The activation function for each decoding layer will
+        be identical to the activation function for the corresponding
+        encoding layer. This means that if we have a rectifier unit for
+        the encoder, we would also have a rectifier for the decoder. This
+        is undesirable. Hence, we use ModeAux instead for the rectifier
+        unit.
+
+        depth_max - The top level through which you are computing the
+        reconstruction. Cannot be higher than the depth of the overall
+        architecture.
+        depth_min - The first level through which you put the noise,
+        and also the target which you try to reconstruct.
+        update_type - 'global' or 'local'. 'local' means that you update
+        the parameters only of the top-most denoising AA. 'global' means
+        that you update the parameters of every layer, from depth_min
+        to depth_max back down to depth_min.
+        """
+        
+        self.mode = 'Unsup'
+        self.lr = lr
+        self.sup_scaling = None
+        self.unsup_scaling = unsup_scaling
+        self.hessscal = hessscal if self.bbbool else None
+        self.update_type = update_type
+        self.depth_max = depth_max
+        self.depth_min = depth_min
+        self.noise_lvl = noise_lvl
+        
+        self.params = []
+        self.upmask = []
+        self.specialupdates = {}
+        self.wd = []
+        self.sp = []
+
+        self.__redefinemodel(1, depth_max,depth_min,noise_lvl,update_type)
+        self.__redefinemodel(-1, depth_max,depth_min,update_type=update_type)
+        if self.aux:
+            self.aux_active = self.__checkauxactive()
+            if self.aux_active:
+                self.auxiliary(1, auxdepth = self.auxdepth, auxn_out = self.auxn_out,
+                        aux_scaling = self.aux_scaling, auxregularization = self.auxregularization,
+                        auxlayertype = self.auxlayertype, auxact = self.auxact,
+                        aux_one_sided = self.aux_one_sided,auxwdreg = self.auxwdreg,
+                        Wtmp = self.auxlayer.W, btmp = self.auxlayer.b,afficheb = False)
+        self.__definecost()
+        if self.bbbool:
+            self.__definebbprop()
+        self.__monitorfunction()
+        self.afficher()
+    
+    def ModeSup(self,depth_max,depth_min=0,update_type = 'global',lr = 0.1,
+                    sup_scaling = 1., hessscal = 0.001):
+        """
+            Define the Theano symbolic variables for computing the supervised symbol.
+
+            ***depth_max : The highest layer, where you are adding the
+            supervised layer. This might not necessarily be the top
+            layer, if we are interested in using a supervised signal at
+            lower layers.
+
+            ***depth_min : All layers from this point up will contribute
+            their features to the logistic regression. If this is the
+            same as depth_max, then only the depth_max features are used
+            for classification.
+
+            ***update_type : 'global' or 'local'. 'global' means update
+            all parameters from the input through depth_max and also the
+            supervised layer. 'local' means update only the supervised
+            layer.
+
+            NOTE: For each (depth_min, depth_max) tuple, this corresponds to
+            a new supervised layer. You will *lose* the previous
+            supervised layer that you constructed. (Unless that
+            supervised layer had the same depth_min and depth_max, in
+            which case we just keep the old one and don't change it. See
+            __redefine_model where it checks for outlayer and depth_max
+            and depth_min.)
+
+            NOTE: If depth_max != depth_min, i.e. you are concatenating
+            layers for supervised features, then you are only permitted
+            to do 'local' updates. The intuition is that we don't
+            want global updates the improve the lower layer supervised
+            classification then interfere with the creation of higher
+            level features and make it harder for higher-level features
+            to do supervised classification.
+        """
+        self.mode = 'Sup'
+        self.lr = lr
+        self.sup_scaling = sup_scaling
+        self.unsup_scaling = None
+        self.hessscal = hessscal if self.bbbool else None
+        self.depth_max = depth_max
+        self.depth_min = depth_min
+        if depth_max != depth_min:
+            update_type = 'local'
+        self.update_type = update_type
+        self.noise_lvl = None
+        
+        self.params = []
+        self.upmask = []
+        self.specialupdates = {}
+        self.wd = []
+        self.sp = []
+        
+        self.__redefinemodel(1, depth_max,0,None,update_type)
+        self.__redefinemodel(0, depth_max,depth_min,update_type = update_type)
+        if self.aux:
+            self.aux_active = self.__checkauxactive()
+            if self.aux_active:
+                self.auxiliary(1, auxdepth = self.auxdepth, auxn_out = self.auxn_out,
+                        aux_scaling = self.aux_scaling, auxregularization = self.auxregularization,
+                        auxlayertype = self.auxlayertype, auxact = self.auxact,
+                        aux_one_sided = self.aux_one_sided,auxwdreg = self.auxwdreg,
+                        Wtmp = self.auxlayer.W, btmp = self.auxlayer.b,afficheb = False)
+        self.__definecost()
+        if self.bbbool:
+            self.__definebbprop()
+        self.__monitorfunction()
+        self.afficher()
+    
     def ModeMixte(self, depth_max, depth_min=0, noise_lvl=None, update_type = 'global',
                     lr = 0.1, sup_scaling = 1., unsup_scaling = 1., hessscal = 0.001):
+        """
+        A combination of ModeUnsup and ModeSup.
+        However, the logistic regression is defined only on the top encoding layer.
+        """
         # @to change when equilibrium optimizer won't cycle sup_scaling = 0.5, unsup_scaling =0.5
         self.mode = 'Mixte'
         self.lr = lr
@@ -855,77 +1104,12 @@ class SDAE(object):
         self.__monitorfunction()
         self.afficher()
     
-    def ModeUnsup(self,depth_max,depth_min=0,noise_lvl=None,update_type = 'global',
-                        lr = 0.1, unsup_scaling = 1., hessscal = 0.001):
-        self.mode = 'Unsup'
-        self.lr = lr
-        self.sup_scaling = None
-        self.unsup_scaling = unsup_scaling
-        self.hessscal = hessscal if self.bbbool else None
-        self.update_type = update_type
-        self.depth_max = depth_max
-        self.depth_min = depth_min
-        self.noise_lvl = noise_lvl
-        
-        self.params = []
-        self.upmask = []
-        self.specialupdates = {}
-        self.wd = []
-        self.sp = []
-        
-        self.__redefinemodel(1, depth_max,depth_min,noise_lvl,update_type)
-        self.__redefinemodel(-1, depth_max,depth_min,update_type=update_type)
-        if self.aux:
-            self.aux_active = self.__checkauxactive()
-            if self.aux_active:
-                self.auxiliary(1, auxdepth = self.auxdepth, auxn_out = self.auxn_out,
-                        aux_scaling = self.aux_scaling, auxregularization = self.auxregularization,
-                        auxlayertype = self.auxlayertype, auxact = self.auxact,
-                        aux_one_sided = self.aux_one_sided,auxwdreg = self.auxwdreg,
-                        Wtmp = self.auxlayer.W, btmp = self.auxlayer.b,afficheb = False)
-        self.__definecost()
-        if self.bbbool:
-            self.__definebbprop()
-        self.__monitorfunction()
-        self.afficher()
-    
-    def ModeSup(self,depth_max,depth_min=0,update_type = 'global',lr = 0.1,
-                    sup_scaling = 1., hessscal = 0.001):
-        self.mode = 'Sup'
-        self.lr = lr
-        self.sup_scaling = sup_scaling
-        self.unsup_scaling = None
-        self.hessscal = hessscal if self.bbbool else None
-        self.depth_max = depth_max
-        self.depth_min = depth_min
-        if depth_max != depth_min:
-            update_type = 'local'
-        self.update_type = update_type
-        self.noise_lvl = None
-        
-        self.params = []
-        self.upmask = []
-        self.specialupdates = {}
-        self.wd = []
-        self.sp = []
-        
-        self.__redefinemodel(1, depth_max,0,None,update_type)
-        self.__redefinemodel(0, depth_max,depth_min,update_type = update_type)
-        if self.aux:
-            self.aux_active = self.__checkauxactive()
-            if self.aux_active:
-                self.auxiliary(1, auxdepth = self.auxdepth, auxn_out = self.auxn_out,
-                        aux_scaling = self.aux_scaling, auxregularization = self.auxregularization,
-                        auxlayertype = self.auxlayertype, auxact = self.auxact,
-                        aux_one_sided = self.aux_one_sided,auxwdreg = self.auxwdreg,
-                        Wtmp = self.auxlayer.W, btmp = self.auxlayer.b,afficheb = False)
-        self.__definecost()
-        if self.bbbool:
-            self.__definebbprop()
-        self.__monitorfunction()
-        self.afficher()
-    
     def ModeAux(self,depth_max,update_type = 'global', lr = 0.1, hessscal = 0.001, noise_lvl = None):
+        """
+        Redefine Theano symbolic variables for the auxiliary layer.
+        The cost is defined only for the auxiliary layer.
+        """
+
         self.depth_max = depth_max
         self.depth_min = 0
         self.aux_active = self.__checkauxactive()

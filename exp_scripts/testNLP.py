@@ -17,8 +17,11 @@ nepochs = 30
 batchsize = 10
 path2savemodel = '/u/glorotxa/'
 
+NINPUTS = 5000          # Number of input dimensions
 
 
+# train - Unlabelled training data
+# trainl - Labelled training data
 f =open('/u/glorotxa/work/NLP/DARPAproject/NEC/OpenTable5000_train_1.pkl','r')
 train = theano.shared(numpy.asarray(cPickle.load(f),dtype=theano.config.floatX))
 print train.value.dtype
@@ -28,8 +31,11 @@ trainl = theano.shared(cPickle.load(f),name = 'trainl')
 f.close()
 
 
-model=SDAE(numpy.random,RandomStreams(),depth,True,act=act,n_hid=n_hid,n_out=5,sparsity=l1,n_inp=5000,noise='binomial_NLP',tie=False)
-model.auxiliary(1,0,5000)
+model=SDAE(numpy.random,RandomStreams(),depth,True,act=act,n_hid=n_hid,n_out=5,sparsity=l1,n_inp=NINPUTS,noise='binomial_NLP',tie=False)
+
+# Create the auxiliary layer, which is over the top-layer features.
+model.auxiliary(init=1,auxdepth=0, auxn_out=NINPUTS)
+
 model.ModeAux(depth,update_type='special',noise_lvl=noise,lr=lr)
 
 #model.layers[0].W.value = cPickle.load(open('/u/glorotxa/depth2ronan/Layer1_W.pkl','r'))
@@ -51,7 +57,7 @@ model.ModeAux(depth,update_type='special',noise_lvl=noise,lr=lr)
 #        sum+=g1(i)[0]
 #    return sum/float(i+1)
 
-g1,n = model.trainfunctionbatch(train,trainl,train , batchsize=batchsize)
+g1,n = model.trainfunctionbatch(train,trainl,train, batchsize=batchsize)
 tes = model.costfunction(train,trainl,train, batchsize=100)
 
 normalshape = train.value.shape
@@ -60,10 +66,18 @@ print tes()
 
 for cc in range(nepochs):
     time1 = time.time()
+    # We iterate over training blocks that have been broken down so that
+    # the fit in the GPU memory.
+    # TODO: Refactor the below so that we have a list of (unlabelled
+    # instances, labels) pairs of filenames.
     for p in xrange(1,16):
         time2 = time.time()
         f =open('/u/glorotxa/work/NLP/DARPAproject/NEC/OpenTable5000_train_%s.pkl'%p,'r')
         object = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
+        # The last training file is not of the same shape as the other training files.
+        # So, to avoid a GPU memory error, we want to make sure it is the same size.
+        # In which case, we pad the matrix but keep track of how many n (instances) there actually are.
+        # TODO: Also want to pad trainl
         if object.shape == normalshape:
             train.value = object
             currentn = normalshape[0]
@@ -80,6 +94,7 @@ for cc in range(nepochs):
         for i in range(currentn/batchsize):
             dum = g1(i)
         print 'file',p,'time',time.time()-time2
+    # Here we test the model on the first block of training data.
     f =open('/u/glorotxa/work/NLP/DARPAproject/NEC/OpenTable5000_train_1.pkl','r')
     train.value = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
     f.close()
