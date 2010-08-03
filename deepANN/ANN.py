@@ -298,7 +298,7 @@ class SDAE(object):
         self.depth = depth
         self.n_inp = n_inp
         self.n_hid = self.__listify(n_hid,self.depth)
-       self.n_out = n_out
+        self.n_out = n_out
         # Layer specific
         self.layertype = self.__listify(layertype,self.depth)
         self.act = self.__listify(act,self.depth)
