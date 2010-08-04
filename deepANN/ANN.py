@@ -44,6 +44,15 @@ CONVENTIONS:
         task is defined only to help train the actual model. (If we want
         to use an auxiliary layer to test the features at some layer,
         we should just define a ModeSup for the test task.)
+
+    * ModeAux should not be used to do unsupervised training. The reason
+    ModeAux is currently used is because ModeUnsup assume that the
+    encoder and decoder have identical activation functions, whereas
+    our top-level encoder is a rectifier and the top-level decoder
+    is a sigmoid. Instead, we should just adapt ModeUnsup so that the
+    encoder and decoder activations can be different (optionally), and
+    not use ModeAux for unsupervised training. To do so just confuses
+    the semantics.
 """
 
 
