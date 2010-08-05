@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 """
-Import unlabelled data (pkl files containing a numpy array), and perform a random projection on it.
-Save to a corresponding .pkl file.
+Import unlabelled data (pkl files containing a numpy array), and perform
+a random projection on it.
+We will create a subdirectory and save the projected matrix to a
+corresponding .pkl file in that subdir.
 
 USAGE:
     ./randomprojection.py [-d dimensions] [-s seed] file1.pkl ...
@@ -29,6 +31,8 @@ from common.str import percent
 import sys
 import cPickle
 import numpy
+import os
+import os.path
 
 MODE = "online"     # Deterministic, low-memory version
 #MODE = "batch"     # Cache the entire random matrix in memory. (However,
@@ -93,7 +97,7 @@ def onlineproject(x, dimensions, seed, randomization_type):
             randrow_values = pyrandomprojection.randomrow(key=col, dimensions=dimensions, RANDOMIZATION_TYPE=randomization_type, RANDOM_SEED=seed)
 
             randrows_computed += 1
-            if randrows_computed % 100 == 0:
+            if randrows_computed % 500 == 0:
                 print >> sys.stderr, "Retrieved %s random rows thus far, done with %s of nonzeroes on %s..." % (percent(randrows_computed, x.shape[1]), percent(l+1, len(nonzero_colrow)), f)
                 print >> sys.stderr, stats()
         newrow = x[row,col] * randrow_values
@@ -134,3 +138,17 @@ if __name__ == "__main__":
 
         newx = project(x, dimensions=options.dimensions, seed=options.seed, randomization_type=RANDOMIZATION_TYPE, mode=MODE)
         assert newx.shape == (x.shape[0], options.dimensions)
+
+        newdir = os.path.join(os.path.dirname(f), "randomprojection.dimensions=%d.seed=%d.randomization=%s.mode=%s" % (options.dimensions, options.seed, RANDOMIZATION_TYPE, MODE))
+        newf = os.path.join(newdir, os.path.basename(f))
+
+        if not os.path.isdir(newdir):
+            print >> sys.stderr, "Creating directory %s..." % newdir
+            os.mkdir(newdir)
+        assert os.path.isdir(newdir)
+
+        print >> sys.stderr, "Writing new pickle file to %s..." % newf
+        print >> sys.stderr, stats()
+        cPickle.dump(newx, open(newf, "wb"))
+        print >> sys.stderr, "...done writing new pickle file to %s" % newf
+        print >> sys.stderr, stats()
