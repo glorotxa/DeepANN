@@ -331,8 +331,8 @@ def NLPSDAE(state,channel):
                 cPickle.dump(err1000,f,-1)
                 cPickle.dump(err10000,f,-1)
                 f.close()
-                os.mkdir(PATH_SAVE+'/depth%spre%s'%(i,cc+1))
-                model.save(PATH_SAVE+'/depth%spre%s'%(i,cc+1))
+                os.mkdir(PATH_SAVE+'/depth%spre%s'%(i+1,cc+1))
+                model.save(PATH_SAVE+'/depth%spre%s'%(i+1,cc+1))
         recmin = numpy.min(rec.values())
         for k in rec.keys():
             if rec[k] == recmin:
