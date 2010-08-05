@@ -316,7 +316,7 @@ def NLPSDAE(state,channel):
                 err10000.update({cc+1:(C,testerr,testerrdev,trainerr,trainerrdev)})
                 
                 trainfunc,n,tes = rebuildunsup(model,i,ACT,LR[i],NOISE_LVL[i],BATCHSIZE,train)
-                f =open(PATH_DATA + NAME_DATATEST +'_%1.pkl','r')
+                f =open(PATH_DATA + NAME_DATATEST +'_1.pkl','r')
                 train.value = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
                 f.close()
                 rec.update({cc+1:tes()})
