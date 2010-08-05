@@ -725,7 +725,7 @@ class SDAE(object):
             self.auxwdreg = None
         #to redefine properly the function
         self.__definecost()
-        self.__monitorfunction()
+        #self.__monitorfunction()
         if self.bbbool:
             self.__definebbprop()
         if afficheb:
@@ -990,7 +990,7 @@ class SDAE(object):
         self.__definecost()
         if self.bbbool:
             self.__definebbprop()
-        self.__monitorfunction()
+        #self.__monitorfunction()
         self.afficher()
     
     def ModeSup(self,depth_max,depth_min=0,update_type = 'global',lr = 0.1,
@@ -1060,7 +1060,7 @@ class SDAE(object):
         self.__definecost()
         if self.bbbool:
             self.__definebbprop()
-        self.__monitorfunction()
+        #self.__monitorfunction()
         self.afficher()
     
     def ModeMixte(self, depth_max, depth_min=0, noise_lvl=None, update_type = 'global',
@@ -1101,7 +1101,7 @@ class SDAE(object):
         self.__definecost()
         if self.bbbool:
             self.__definebbprop()
-        self.__monitorfunction()
+        #self.__monitorfunction()
         self.afficher()
     
     def ModeAux(self,depth_max,update_type = 'global', lr = 0.1, hessscal = 0.001, noise_lvl = None):
@@ -1142,7 +1142,7 @@ class SDAE(object):
         self.__definecost()
         if self.bbbool:
             self.__definebbprop()
-        self.__monitorfunction()
+        #self.__monitorfunction()
         self.afficher()
     
     def untie(self):
