@@ -284,7 +284,7 @@ def NLPSDAE(state,channel):
             time1 = time.time()
             for p in xrange(1,NB_FILES + 1):
                 time2=time.time()
-                f =open(PATH_DATA + NAME_DATA +'_%s.pkl','r')
+                f =open(PATH_DATA + NAME_DATA +'_%s.pkl'%p,'r')
                 object = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
                 # The last training file is not of the same shape as the other training files.
                 # So, to avoid a GPU memory error, we want to make sure it is the same size.
@@ -316,7 +316,7 @@ def NLPSDAE(state,channel):
                 err10000.update({cc+1:(C,testerr,testerrdev,trainerr,trainerrdev)})
                 
                 trainfunc,n,tes = rebuildunsup(model,i,ACT,LR[i],NOISE_LVL[i],BATCHSIZE,train)
-                f =open(PATH_DATA + NAME_DATATEST +'_%1.pkl'%p,'r')
+                f =open(PATH_DATA + NAME_DATATEST +'_%1.pkl','r')
                 train.value = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
                 f.close()
                 rec.update({cc+1:tes()})
