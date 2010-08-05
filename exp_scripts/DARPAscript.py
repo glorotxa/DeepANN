@@ -157,8 +157,8 @@ def NLPSDAE(state,channel):
     L2 = state.l2 #list
     WDREG = state.wdreg
     SPREG = state.spreg
-    NEPOCHS = state.nepochs#list
-    EPOCHSTEST = state.epochstest
+    NEPOCHS = state.nepochs #list
+    EPOCHSTEST = state.epochstest #list
     BATCHSIZE = state.batchsize
     PATH_SAVE = channel.remote_path if hasattr(channel,'remote_path') else channel.path
     NB_FILES = state.nb_files
@@ -204,6 +204,7 @@ def NLPSDAE(state,channel):
         NEPOCHS = oldstate.nepochs + NEPOCHS
         LR = oldstate.lr + LR
         NOISE_LVL = oldstate.noise_lvl + NOISE_LVL
+        EPOCHSTEST = oldstate.epochstest + EPOCHSTEST
         state.bestrec = oldstate.bestrec
         state.bestrecepoch = oldstate.bestrec
         del oldstate
@@ -237,6 +238,7 @@ def NLPSDAE(state,channel):
     state.nepochs = NEPOCHS
     state.LR = LR
     state.noise_lvl = NOISE_LVL
+    state.epochstest = EPOCHSTEST
     channel.save()
     
     for i in xrange(depthbegin,DEPTH):
@@ -258,7 +260,7 @@ def NLPSDAE(state,channel):
         err100 = {}
         err1000 = {}
         err10000 = {}
-        if 0 in EPOCHSTEST: 
+        if 0 in EPOCHSTEST[i]: 
             trainfunc,n,tes = rebuildunsup(model,i,ACT,LR[i],None,BATCHSIZE,train)
             createlibsvmfile(model,i,datatrain,datatrainsave)
             createlibsvmfile(model,i,datatest,datatestsave)
@@ -302,7 +304,7 @@ def NLPSDAE(state,channel):
                     dum = trainfunc(j)
                 print 'File:',p,time.time()-time2, '----'
             print '-----------------------------epoch',cc+1,'time',time.time()-time1
-            if cc+1 in EPOCHSTEST:
+            if cc+1 in EPOCHSTEST[i]:
                 trainfunc,n,tes = rebuildunsup(model,i,ACT,LR[i],None,BATCHSIZE,train)
                 createlibsvmfile(model,i,datatrain,datatrainsave)
                 createlibsvmfile(model,i,datatest,datatestsave)                
