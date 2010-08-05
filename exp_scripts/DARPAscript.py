@@ -78,10 +78,10 @@ def dosvm(nbinputs,datatrainsave,datatestsave,PATH_SAVE):
     f.close()
     os.remove(PATH_SAVE+'/currentsvm.txt')
     res = a.split(' ')
-    trainerr = [res[1]]
-    trainerrdev = [res[2]]
-    testerr = [res[3]]
-    testerrdev = [res[4]]
+    trainerr = [float(res[1])]
+    trainerrdev = [float(res[2])]
+    testerr = [float(res[3])]
+    testerrdev = [float(res[4])]
     Clist=[C]
     
     C = 0.001
@@ -92,10 +92,10 @@ def dosvm(nbinputs,datatrainsave,datatestsave,PATH_SAVE):
     f.close()
     os.remove(PATH_SAVE+'/currentsvm.txt')
     res = a.split(' ')
-    trainerr = [res[1]] + trainerr
-    trainerrdev = [res[2]] + trainerrdev
-    testerr = [res[3]] + testerr
-    testerrdev = [res[4]] + testerrdev
+    trainerr = [float(res[1])] + trainerr
+    trainerrdev = [float(res[2])] + trainerrdev
+    testerr = [float(res[3])] + testerr
+    testerrdev = [float(res[4])] + testerrdev
     Clist=[C] + Clist
     
     if testerr[1] < testerr[0]:
@@ -108,10 +108,10 @@ def dosvm(nbinputs,datatrainsave,datatestsave,PATH_SAVE):
             f.close()
             os.remove(PATH_SAVE+'/currentsvm.txt')
             res = a.split(' ')
-            trainerr += [res[1]]
-            trainerrdev += [res[2]]
-            testerr += [res[3]]
-            testerrdev += [res[4]]
+            trainerr += [float(res[1])]
+            trainerrdev += [float(res[2])]
+            testerr += [float(res[3])]
+            testerrdev += [float(res[4])]
             Clist+=[C]
             C=C*10
         if C!=100000:
@@ -128,10 +128,10 @@ def dosvm(nbinputs,datatrainsave,datatestsave,PATH_SAVE):
             f.close()
             os.remove(PATH_SAVE+'/currentsvm.txt')
             res = a.split(' ')
-            trainerr = [res[1]] + trainerr
-            trainerrdev = [res[2]] + trainerrdev
-            testerr = [res[3]] + testerr
-            testerrdev = [res[4]] + testerrdev
+            trainerr = [float(res[1])] + trainerr
+            trainerrdev = [float(res[2])] + trainerrdev
+            testerr = [float(res[3])] + testerr
+            testerrdev = [float(res[4])] + testerrdev
             Clist=[C] + Clist
             C=C*0.1
         if C != 0.000001:
@@ -166,6 +166,7 @@ def NLPSDAE(state,channel):
     NAME_DATA = state.name_data
     NAME_LABEL = state.name_label
     NAME_DATATEST = state.name_datatest
+    NAME_LABELTEST = state.name_labeltest
     MODEL_RELOAD = state.model_reload if hasattr(state,'model_reload') else None
     NINPUTS = state.ninputs          # Number of input dimensions
     INPUTTYPE = state.inputtype
@@ -174,7 +175,7 @@ def NLPSDAE(state,channel):
     
     datatrain = (PATH_DATA+NAME_DATA+'_1.pkl',PATH_DATA+NAME_LABEL+'_1.pkl')
     datatrainsave = PATH_SAVE+'/train.libsvm'
-    datatest = (PATH_DATA+NAME_DATA+'_2.pkl',PATH_DATA+NAME_LABEL+'_2.pkl')
+    datatest = (PATH_DATA+NAME_DATATEST+'_1.pkl',PATH_DATA+NAME_LABELTEST+'_1.pkl')
     datatestsave = PATH_SAVE+'/test.libsvm'
     
     depthbegin = 0
@@ -331,8 +332,8 @@ def NLPSDAE(state,channel):
                 cPickle.dump(err1000,f,-1)
                 cPickle.dump(err10000,f,-1)
                 f.close()
-                os.mkdir(PATH_SAVE+'/depth%spre%s'%(i,cc+1))
-                model.save(PATH_SAVE+'/depth%spre%s'%(i,cc+1))
+                os.mkdir(PATH_SAVE+'/depth%spre%s'%(i+1,cc+1))
+                model.save(PATH_SAVE+'/depth%spre%s'%(i+1,cc+1))
         recmin = numpy.min(rec.values())
         for k in rec.keys():
             if rec[k] == recmin:
