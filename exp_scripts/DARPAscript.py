@@ -284,7 +284,7 @@ def NLPSDAE(state,channel):
             time1 = time.time()
             for p in xrange(1,NB_FILES + 1):
                 time2=time.time()
-                f =open(PATH_DATA + NAME_DATA +'_%s.pkl'%p,'r')
+                f =open(PATH_DATA + NAME_DATA +'_%s.pkl','r')
                 object = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
                 # The last training file is not of the same shape as the other training files.
                 # So, to avoid a GPU memory error, we want to make sure it is the same size.
@@ -331,8 +331,8 @@ def NLPSDAE(state,channel):
                 cPickle.dump(err1000,f,-1)
                 cPickle.dump(err10000,f,-1)
                 f.close()
-                os.mkdir(PATH_SAVE+'/pre%s'%(cc+1))
-                model.save(PATH_SAVE+'/pre%s'%(cc+1))
+                os.mkdir(PATH_SAVE+'/depth%spre%s'%(i,cc+1))
+                model.save(PATH_SAVE+'/depth%spre%s'%(i,cc+1))
         recmin = numpy.min(rec.values())
         for k in rec.keys():
             if rec[k] == recmin:
