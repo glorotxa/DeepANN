@@ -184,13 +184,10 @@ def NLPSDAE(state,channel):
     state.bestrec = []
     state.bestrecepoch = []
     state.besterr100 = []
-    state.bestC100 = []
     state.besterr1000 = []
     state.besterr100epoch = []
-    state.bestC1000 = []
     state.besterr1000epoch = []
     state.besterr10000 = []
-    state.bestC1000 = []
     state.besterr10000epoch = []
     
     if MODEL_RELOAD != None:
