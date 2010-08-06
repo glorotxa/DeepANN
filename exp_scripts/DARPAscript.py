@@ -191,7 +191,7 @@ def NLPSDAE(state,channel):
     state.besterr1000epoch = []
     state.besterr10000 = []
     state.bestC1000 = []
-    state.besterr1000epoch = []
+    state.besterr10000epoch = []
     
     if MODEL_RELOAD != None:
         oldstate = expand(DD(filemerge(MODEL_RELOAD+'../current.conf')))
