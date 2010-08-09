@@ -1,0 +1,51 @@
+Regarding exp_script/DARPAscript.py and DARPA.con:
+
+In order to make it work you need to install the Antoine version of the
+liblinear library (to do very very fast SVM learning). Antoine added the
+code in the preprocessor archive. In the first line of the script, a path
+to the lib/liblinear folder is hard coded, you should change it to yours.
+
+Also, you need to have jobman. And in your PYTHONPATH you should put
+the deepANN path.
+
+Then all the parameters needed to launch the experiments are in
+DARPA.conf. They are currently at the values of our best setting so far.
+
+The script does greedy layer-wise training on GPUs or CPU, and, at a list
+of epochs (that you give as parameters), it calculates the reconstruction
+error on the first 25000 examples of our test set (to be sure not to
+overfit), and more importantly, it will train linear SVMs on the current
+layer representation with 100 (20 runs on different training set), 1000
+(10 runs), 10000 (1 run), on the first 10000 training examples, and
+validate it on the training examples from index 25001 to 35000. It also
+trys different C (factors of 10) to be sure to select one corresponding
+to a local minimum of the validation error.
+
+This seems to be a very long process (20 * 100exemples, 10 * 1000exemples,
+1* 1000exemples) * number of C visited (at least 3), but in fact it takes
+about 30 minutes (thanks to Antoine and liblinear :) ), we could even
+execute the svms in parallel on CPU with a thread (I've already done it
+to generate shapeset data on CPU while training on GPU), at the moment
+it is not implemented but I think I will add the option in the future.
+
+For huge models (5000 hidden units per layer) the svm might take up to 2
+Gig of RAM on the CPU and this model size fits also on the GPU I tested
+(GTX480).
+
+You can set an experiment that does all the layers in one job, or just
+add some layer to a previous trained model (you can give in the parameters
+the path of the model you want to load).
+
+I am currently testing the script to ensure it works well, at least now
+it seems to.
+
+You should use the GPU for this size of inputs to have results in approx
+8h for 3 layers in our best setting, instead of 5 days with CPU.
+
+The simple command to lauch the script properly is:
+
+THEANO_FLAGS=mode=FAST_RUN,device=gpu0*(or another gpu device
+number)*,floatX=float32 jobman cmdline DARPAscript.NLPSDAE DARPA.conf
+
+Don't forget that we still need RAM on the CPU (around 2Gig in the worst
+case).

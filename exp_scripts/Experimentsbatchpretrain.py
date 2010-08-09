@@ -120,6 +120,16 @@ def loaddata(state):
     return test,testl,valid,validl,train,trainl
 
 def pretraining(state,channel):
+    import theano,pylearn.version,deepANN
+    pylearn.version.record_versions(state,[theano,pylearn,deepANN])
+    
+    theano.config.floatX = state.floatX
+    theano.config.device = state.device
+    theano.sandbox.cuda.use(theano.config.device)
+
+    print "floatX",theano.config.floatX
+    print "device",theano.config.device
+
     test,testl,valid,validl,train,trainl = loaddata(state)
     
     numpy.random.seed(state.seed)
@@ -151,8 +161,14 @@ def finetuning(state,channel):
     import theano,pylearn.version,deepANN
     pylearn.version.record_versions(state,[theano,pylearn,deepANN])
     
-    test,testl,valid,validl,train,trainl = loaddata(state)
+    theano.config.floatX = state.floatX
+    theano.config.device = state.device
+    theano.sandbox.cuda.use(theano.config.device)
     
+    print "floatX",theano.config.floatX
+    print "device",theano.config.device
+    
+    test,testl,valid,validl,train,trainl = loaddata(state)
     numpy.random.seed(state.seed)
     
     model=SDAE(numpy.random,RandomStreams(),state.depth,True,act=state.act,n_out=state.n_out,n_hid=state.n_hid,n_inp=state.in_size,maskbool = None)
