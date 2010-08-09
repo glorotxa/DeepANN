@@ -153,20 +153,20 @@ def NLPSDAE(state,channel):
     N_HID = state.n_hid #list
     NOISE = state.noise #list
     NOISE_LVL = state.noise_lvl#list
-    L1 = state.l1 #list
-    L2 = state.l2 #list
-    WDREG = state.wdreg
-    SPREG = state.spreg
+    ACTIVATION_REGULARIZATION_TYPE = state.activation_regularization_type
+    ACTIVATION_REGULARIZATION_COEFF = state.activation_regularization_coeff #list
+    WEIGHT_REGULARIZATION_TYPE = state.weight_regularization_type
+    WEIGHT_REGULARIZATION_COEFF = state.weight_regularization_coeff #list
     NEPOCHS = state.nepochs #list
     EPOCHSTEST = state.epochstest #list
     BATCHSIZE = state.batchsize
     PATH_SAVE = channel.remote_path if hasattr(channel,'remote_path') else channel.path
     NB_FILES = state.nb_files
     PATH_DATA = state.path_data
-    NAME_DATA = state.name_data
-    NAME_LABEL = state.name_label
-    NAME_DATATEST = state.name_datatest
-    NAME_LABELTEST = state.name_labeltest
+    NAME_DATA = state.name_traindata
+    NAME_LABEL = state.name_trainlabel
+    NAME_DATATEST = state.name_testdata
+    NAME_LABELTEST = state.name_testlabel
     MODEL_RELOAD = state.model_reload if hasattr(state,'model_reload') else None
     NINPUTS = state.ninputs          # Number of input dimensions
     INPUTTYPE = state.inputtype
@@ -216,8 +216,8 @@ def NLPSDAE(state,channel):
     f.close()
     normalshape = train.value.shape
    
-    model=SDAE(numpy.random,RandomStreams(),DEPTH,True,act=ACT,n_hid=N_HID,n_out=5,sparsity=L1,\
-                regularization=L2, wdreg = WDREG, spreg = SPREG, n_inp=NINPUTS,noise=NOISE,tie=True)
+    model=SDAE(numpy.random,RandomStreams(),DEPTH,True,act=ACT,n_hid=N_HID,n_out=5,sparsity=ACTIVATION_REGULARIZATION_COEFF,\
+            regularization=WEIGHT_REGULARIZATION_COEFF, wdreg = WEIGHT_REGULARIZATION_TYPE, spreg = ACTIVATION_REGULARIZATION_TYPE, n_inp=NINPUTS,noise=NOISE,tie=True)
     
     #RELOAD previous model
     for i in range(depthbegin):
@@ -231,8 +231,8 @@ def NLPSDAE(state,channel):
     state.depthbegin = depthbegin
     state.n_hid = N_HID
     state.noise = NOISE
-    state.l1 = L1
-    state.l2 = L2
+    state.activation_regularization_coeff = ACTIVATION_REGULARIZATION_COEFF
+    state.weight_regularization_coeff = WEIGHT_REGULARIZATION_COEFF
     state.nepochs = NEPOCHS
     state.LR = LR
     state.noise_lvl = NOISE_LVL
