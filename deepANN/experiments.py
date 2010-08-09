@@ -1,5 +1,6 @@
 import numpy
 
+import sys
 import time
 import os
 import copy
@@ -11,7 +12,7 @@ import time
 from theano.tensor.shared_randomstreams import RandomStreams
 
 def load_mat(fname, save_dir=''):
-    print 'loading ndarray from file: ', save_dir + fname
+    print >> sys.stderr, 'loading ndarray from file: ', save_dir + fname
     file_handle = open(os.path.join(save_dir,fname), 'r')
     rval = filetensor.read(file_handle)
     file_handle.close()
@@ -97,7 +98,7 @@ def recexpe(state,channel):
                                 if 'bestmodel' not in os.listdir('.'):
                                     os.mkdir('bestmodel')
                                 Model.save('bestmodel/')
-                            print '%s: seed %s, test: %s, valid: %s, besttest : %s, bestvalid : %s, besttestval :%s'\
+                            print >> sys.stderr, '%s: seed %s, test: %s, valid: %s, besttest : %s, bestvalid : %s, besttestval :%s'\
                                     %(state.updatecount,state.seed,state.testrec,state.valrec,\
                                     state.besttestrec,state.bestvalrec,state.besttestvalrec)
                     dum = trai(j)
@@ -116,9 +117,9 @@ def recexpe(state,channel):
             trai, trai_n, val, tes = definetrainandtest(Model,train,trainaux,valid,validaux,test,testaux,(10,100))
             
             for i in range(nepochs):
-                print 'epoch' , i
+                print >> sys.stderr, 'epoch' , i
                 for j in range(trai_n):
-                    print 'up' , j
+                    print >> sys.stderr, 'up' , j
                     if (state.updatecount % state.resolution) == 0:
                         state.testrec = tes()
                         state.valrec = val()
@@ -132,7 +133,7 @@ def recexpe(state,channel):
                             if 'bestmodel' not in os.listdir('.'):
                                 os.mkdir('bestmodel')
                             Model.save('bestmodel/')
-                        print '%s: seed %s, test: %s, valid: %s, besttest : %s, bestvalid : %s, besttestval :%s'\
+                        print >> sys.stderr, '%s: seed %s, test: %s, valid: %s, besttest : %s, bestvalid : %s, besttestval :%s'\
                                 %(state.updatecount,state.seed,state.testrec,state.valrec,\
                                 state.besttestrec,state.bestvalrec,state.besttestvalrec)
                     dum = trai(j)

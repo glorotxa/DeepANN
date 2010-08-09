@@ -6,6 +6,8 @@ This script define the different symbolic activations function
 import theano
 import theano.tensor as T
 
+import sys
+
 def sigmoid_act(x):
     return theano.tensor.nnet.sigmoid(x)
 

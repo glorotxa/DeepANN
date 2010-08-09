@@ -1,5 +1,6 @@
 import numpy, time, cPickle, gzip
 import os
+import sys
 import theano
 import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
@@ -153,20 +154,20 @@ class DenseLayer(object):
         # @TO DO: special update attibute (for bbprop, rectifier count, rescaling weigths..)
         #-----------------------------------------------------------------------------------
         # Print init
-        print '\t\t\t**** DenseLayer.__init__ ****'
-        print '\t\t\ttag = ', tag
-        print '\t\t\tinp = ', inp
-        print '\t\t\tn_inp = ', self.n_inp
-        print '\t\t\tn_out = ', self.n_out
-        print '\t\t\tact = ', self.act
-        print '\t\t\tnoise = ', self.noise
-        print '\t\t\tout = ', self.out
-        print '\t\t\tparams (gradients) = ', self.params
-        print '\t\t\twdreg (weigth decay) = ', self.wdreg
-        print '\t\t\tspreg (sparsity) = ', self.spreg
-        print '\t\t\tupmaskbool = ', self.upmaskbool
-        print '\t\t\tmaskinit = ', self.maskinit
-        print '\t\t\tallocW, allocb, allocmask = ', allocW, allocb, allocmask
+        print >> sys.stderr, '\t\t\t**** DenseLayer.__init__ ****'
+        print >> sys.stderr, '\t\t\ttag = ', tag
+        print >> sys.stderr, '\t\t\tinp = ', inp
+        print >> sys.stderr, '\t\t\tn_inp = ', self.n_inp
+        print >> sys.stderr, '\t\t\tn_out = ', self.n_out
+        print >> sys.stderr, '\t\t\tact = ', self.act
+        print >> sys.stderr, '\t\t\tnoise = ', self.noise
+        print >> sys.stderr, '\t\t\tout = ', self.out
+        print >> sys.stderr, '\t\t\tparams (gradients) = ', self.params
+        print >> sys.stderr, '\t\t\twdreg (weigth decay) = ', self.wdreg
+        print >> sys.stderr, '\t\t\tspreg (sparsity) = ', self.spreg
+        print >> sys.stderr, '\t\t\tupmaskbool = ', self.upmaskbool
+        print >> sys.stderr, '\t\t\tmaskinit = ', self.maskinit
+        print >> sys.stderr, '\t\t\tallocW, allocb, allocmask = ', allocW, allocb, allocmask
         # @TO DO: special update attibute (for bbprop, rectifier count, rescaling weigths..)
     
     def createout(self, noise_lvl): #create output with a scalar noise parameter
@@ -213,15 +214,15 @@ class DenseLayer(object):
         f = open(path+'W.pkl','w')
         cPickle.dump(self.W.value,f,-1)
         f.close()
-        print self.W, 'saved in %s'%(path+'W.pkl')
+        print >> sys.stderr, self.W, 'saved in %s'%(path+'W.pkl')
         f = open(path+'b.pkl','w')
         cPickle.dump(self.b.value,f,-1)
         f.close()
-        print self.b, 'saved in %s'%(path+'b.pkl')
+        print >> sys.stderr, self.b, 'saved in %s'%(path+'b.pkl')
         f = open(path+'mask.pkl','w')
         cPickle.dump(self.mask.value,f,-1)
         f.close()
-        print self.mask, 'saved in %s'%(path+'mask.pkl')
+        print >> sys.stderr, self.mask, 'saved in %s'%(path+'mask.pkl')
     
     def load(self,path):
         """
@@ -231,15 +232,15 @@ class DenseLayer(object):
         f = open(path+'W.pkl','r')
         self.W.value = cPickle.load(f)
         f.close()
-        print self.W, 'loaded from %s'%(path+'W.pkl')
+        print >> sys.stderr, self.W, 'loaded from %s'%(path+'W.pkl')
         f = open(path+'b.pkl','r')
         self.b.value = cPickle.load(f)
         f.close()
-        print self.b, 'loaded from %s'%(path+'b.pkl')
+        print >> sys.stderr, self.b, 'loaded from %s'%(path+'b.pkl')
         f = open(path+'mask.pkl','r')
         self.mask.value = cPickle.load(f)
         f.close()
-        print self.mask, 'loaded from %s'%(path+'mask.pkl')
+        print >> sys.stderr, self.mask, 'loaded from %s'%(path+'mask.pkl')
     
 #def scaling_rectifierweigths(self):
 #def moving_averageandvariances(self):
@@ -416,7 +417,7 @@ class SDAE(object):
                     tmp_n_out = self.n_hid[i]
                 else:
                     tmp_n_out = self.layers[i].n_inp
-                print '\t\t---- ',text,' layer #%s ----'%(i+1)
+                print >> sys.stderr, '\t\t---- ',text,' layer #%s ----'%(i+1)
                 if allocbool:
                     Wtmp = None
                     btmp = None
@@ -493,7 +494,7 @@ class SDAE(object):
                 #concatenate inputs
                 tmp_inp = T.join(*tmp_list)
                 tmp_n_inp += numpy.sum(self.n_hid[depth_min:depth_max])
-            print '\t---- Output Layer ----'
+            print >> sys.stderr, '\t---- Output Layer ----'
             Winit = None
             binit = None
             # If the previous graph with an outlayer and it has the
@@ -713,7 +714,7 @@ class SDAE(object):
             else:
                 tmp_inp = self.layersdec[-auxdepth].out
                 tmp_n_inp = self.layersdec[-auxdepth].n_out
-            print '\t---- Auxiliary Layer ----'
+            print >> sys.stderr, '\t---- Auxiliary Layer ----'
             self.auxlayer = self.auxlayertype(self.rng, self.theano_rng,tmp_inp,tmp_n_inp,auxn_out,
                                             auxact, noise = None, Winit = Wtmp, binit = btmp, wdreg = auxwdreg,
                                             spreg = 'l1', tag = 'aux' + '%s'%(auxdepth),upmaskbool = self.bbbool)
@@ -863,7 +864,7 @@ class SDAE(object):
         cPickle.dump(paramscurrent,f,-1)
         cPickle.dump(paramsaux,f,-1)
         f.close()
-        print 'params.pkl saved in %s'%fname
+        print >> sys.stderr, 'params.pkl saved in %s'%fname
         
         for i in range(self.depth):
             self.layers[i].save(fname+'/Layer'+str(i+1)+'_')
@@ -872,7 +873,7 @@ class SDAE(object):
         if self.auxlayer != None:
             self.auxlayer.save(fname+'/Layeraux_')
         self.outlayer.save(fname+'/Layerout_')
-        print 'saved in %s'%fname
+        print >> sys.stderr, 'saved in %s'%fname
     
     def load(self,fname):
         """
@@ -884,7 +885,7 @@ class SDAE(object):
         paramscurrent = cPickle.load(f)
         paramsaux = cPickle.load(f)
         f.close()
-        print 'params.pkl loaded in %s'%fname
+        print >> sys.stderr, 'params.pkl loaded in %s'%fname
         #reload base model-----------------------
         tmp = False
         for i in self.paramsinitkeys:
@@ -941,7 +942,7 @@ class SDAE(object):
         if self.auxlayer != None:
             self.auxlayer.load(fname+'/Layeraux_')
         self.outlayer.load(fname+'/Layerout_')
-        print 'loaded from %s'%fname
+        print >> sys.stderr, 'loaded from %s'%fname
     
     def ModeUnsup(self,depth_max,depth_min=0,noise_lvl=None,update_type = 'global',
                         lr = 0.1, unsup_scaling = 1., hessscal = 0.001):
@@ -1160,7 +1161,7 @@ class SDAE(object):
                 self.tie[i] = False
                 self.layersdec[i].W = theano.shared(value = numpy.asarray(self.layers[i].W.value.T,\
                                                     dtype = theano.config.floatX),name = 'Wdec%s'%i)
-                print 'layer %s untied, Warning, you need to redefine the mode'%i
+                print >> sys.stderr, 'layer %s untied, Warning, you need to redefine the mode'%i
     
     def afficher(self):
         paramsaux = []
@@ -1170,30 +1171,30 @@ class SDAE(object):
             paramsaux += self.auxlayer.params
             if self.auxregularization:
                 wdaux += [self.auxregularization*self.auxlayer.wd]
-        print '\t**** SDAE ****'
-        print '\tdepth = ', self.depth
-        print '\tmode = ', self.mode
-        print '\tdepth_min, depth_max, update_type = ', self.depth_min,',', \
+        print >> sys.stderr, '\t**** SDAE ****'
+        print >> sys.stderr, '\tdepth = ', self.depth
+        print >> sys.stderr, '\tmode = ', self.mode
+        print >> sys.stderr, '\tdepth_min, depth_max, update_type = ', self.depth_min,',', \
                                         self.depth_max,',', self.update_type
-        print '\tinp, n_inp = ', self.inp ,',' , self.n_inp
-        print '\tn_hid = ', self.n_hid
-        print '\tlayertype = ', self.layertype
-        print '\tact = ', self.act
-        print '\tnoise, noise_lvl = ', self.noise,',', self.noise_lvl
-        print '\ttie = ', self.tie
-        print '\tmaskbool = ', self.maskbool
-        print '\tn_out, outtype = ', self.n_out,',' , self.outtype
-        print '\tlr = ', self.lr
-        print '\tsup_scaling, unsup_scaling, aux_scaling  = ', self.sup_scaling, \
+        print >> sys.stderr, '\tinp, n_inp = ', self.inp ,',' , self.n_inp
+        print >> sys.stderr, '\tn_hid = ', self.n_hid
+        print >> sys.stderr, '\tlayertype = ', self.layertype
+        print >> sys.stderr, '\tact = ', self.act
+        print >> sys.stderr, '\tnoise, noise_lvl = ', self.noise,',', self.noise_lvl
+        print >> sys.stderr, '\ttie = ', self.tie
+        print >> sys.stderr, '\tmaskbool = ', self.maskbool
+        print >> sys.stderr, '\tn_out, outtype = ', self.n_out,',' , self.outtype
+        print >> sys.stderr, '\tlr = ', self.lr
+        print >> sys.stderr, '\tsup_scaling, unsup_scaling, aux_scaling  = ', self.sup_scaling, \
                                         self.unsup_scaling, self.aux_scaling
-        print '\tregularization, wdreg  = ', self.regularization,',', self.wdreg
-        print '\tsparsity, spreg = ', self.sparsity,',', self.spreg
-        print '\tparams, wd, sp = ', self.params+paramsaux,',', self.wd+wdaux, ',', self.sp
-        print '\tbbbool, hessscal = ', self.bbbool,',', self.hessscal
-        print '\taux, auxtarget, aux_one_sided, auxdepth, auxregularization = ', \
+        print >> sys.stderr, '\tregularization, wdreg  = ', self.regularization,',', self.wdreg
+        print >> sys.stderr, '\tsparsity, spreg = ', self.sparsity,',', self.spreg
+        print >> sys.stderr, '\tparams, wd, sp = ', self.params+paramsaux,',', self.wd+wdaux, ',', self.sp
+        print >> sys.stderr, '\tbbbool, hessscal = ', self.bbbool,',', self.hessscal
+        print >> sys.stderr, '\taux, auxtarget, aux_one_sided, auxdepth, auxregularization = ', \
                                 self.aux, ',', self.auxtarget, ',', self.aux_one_sided, ',', \
                                 self.auxdepth, ',', self.auxregularization
-        print '\tauxact, auxn_out, auxwdreg = ', \
+        print >> sys.stderr, '\tauxact, auxn_out, auxwdreg = ', \
                                 self.auxact, ',', self.auxn_out, ',', self.auxwdreg
 
 if __name__ == '__main__':
@@ -1227,7 +1228,7 @@ if __name__ == '__main__':
         epoch = 0
         while epoch<=maxi:
             for i in range(n):
-                print g(i), 'epoch:', epoch, 'err:',err , i
+                print >> sys.stderr, g(i), 'epoch:', epoch, 'err:',err , i
             epoch += 1
             err = f()
         neworder = numpy.random.permutation(train.value.shape[0])

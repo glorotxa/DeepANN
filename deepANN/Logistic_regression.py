@@ -37,6 +37,7 @@ __docformat__ = 'restructedtext en'
 
 import numpy, time, cPickle, gzip
 
+import sys
 import theano
 import theano.tensor as T
 
@@ -106,15 +107,15 @@ class LogisticRegression(object):
         self.upmaskbool = upmaskbool
         if self.upmaskbool:
             self.updatemaskinit()
-        print '\t\t**** Logistic_regression.__init__ ****'
-        print '\t\tinp = ', inp
-        print '\t\tn_inp = ', self.n_inp
-        print '\t\tn_out = ', self.n_out
-        print '\t\tout = ', self.out
-        print '\t\tparams (gradients) = ', self.params
-        print '\t\twdreg (weigth decay) = ', self.wdreg
-        print '\t\tupmaskbool = ', self.upmaskbool
-        print '\t\tallocW, allocb = ', allocW, allocb
+        print >> sys.stderr, '\t\t**** Logistic_regression.__init__ ****'
+        print >> sys.stderr, '\t\tinp = ', inp
+        print >> sys.stderr, '\t\tn_inp = ', self.n_inp
+        print >> sys.stderr, '\t\tn_out = ', self.n_out
+        print >> sys.stderr, '\t\tout = ', self.out
+        print >> sys.stderr, '\t\tparams (gradients) = ', self.params
+        print >> sys.stderr, '\t\twdreg (weigth decay) = ', self.wdreg
+        print >> sys.stderr, '\t\tupmaskbool = ', self.upmaskbool
+        print >> sys.stderr, '\t\tallocW, allocb = ', allocW, allocb
     
     def cost(self, y):
         """Return the mean of the negative log-likelihood of the prediction
@@ -183,18 +184,18 @@ class LogisticRegression(object):
         f = open(path+'W.pkl','w')
         cPickle.dump(self.W.value,f)
         f.close()
-        print self.W, 'saved in %s'%(path+'W.pkl')
+        print >> sys.stderr, self.W, 'saved in %s'%(path+'W.pkl')
         f = open(path+'b.pkl','w')
         cPickle.dump(self.b.value,f)
         f.close()
-        print self.b, 'saved in %s'%(path+'b.pkl')
+        print >> sys.stderr, self.b, 'saved in %s'%(path+'b.pkl')
     
     def load(self,path):
         f = open(path+'W.pkl','r')
         self.W.value = cPickle.load(f)
         f.close()
-        print self.W, 'loaded from %s'%(path+'W.pkl')
+        print >> sys.stderr, self.W, 'loaded from %s'%(path+'W.pkl')
         f = open(path+'b.pkl','r')
         self.b.value = cPickle.load(f)
         f.close()
-        print self.b, 'loaded from %s'%(path+'b.pkl')
+        print >> sys.stderr, self.b, 'loaded from %s'%(path+'b.pkl')

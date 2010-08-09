@@ -4,12 +4,13 @@ from ANN import *
 theano.config.mode = 'FAST_RUN'
 
 import pylearn.datasets.MNIST
+import sys
 import copy, os
 from pylearn.io import filetensor
 
 
 def load_mat(fname, save_dir=''):
-    print 'loading ndarray from file: ', save_dir + fname
+    print >> sys.stderr, 'loading ndarray from file: ', save_dir + fname
     file_handle = open(os.path.join(save_dir,fname), 'r')
     rval = filetensor.read(file_handle)
     file_handle.close()
@@ -63,10 +64,10 @@ tes = a1.errorfunction([test,255.,0,theano.config.floatX],testl,batchsize=100)
 
 
 for i in range(n):
-    print g1(i),i
+    print >> sys.stderr, g1(i),i
 
 for i in range(n):
-    print g1(i),i
+    print >> sys.stderr, g1(i),i
 
 a1.auxiliary(1, 2,1024, auxact = 'sigmoid', auxwdreg = 'l2', Wtmp = a1.auxlayer.W, btmp = a1.auxlayer.b)
 a1.aux = False
@@ -75,10 +76,10 @@ g1,n = a1.trainfunctionbatch([train,255.,theano.config.floatX],None,[trainl,255.
                 batchsize=batchsize)
 
 for i in range(n):
-    print g1(i),i
+    print >> sys.stderr, g1(i),i
 
 for i in range(n):
-    print g1(i),i
+    print >> sys.stderr, g1(i),i
 
 a1.aux = True
 a1.ModeAux(2,update_type='special',lr=0.001)
@@ -86,10 +87,10 @@ g1,n = a1.trainfunctionbatch([train,255.,theano.config.floatX],trainlabels,[trai
                 batchsize=batchsize)
 
 for i in range(n):
-    print g1(i),i
+    print >> sys.stderr, g1(i),i
 
 for i in range(n):
-    print g1(i),i
+    print >> sys.stderr, g1(i),i
 
 
 a1.ModeUnsup(3,2,update_type='global',lr=0.001)
@@ -97,10 +98,10 @@ g1,n = a1.trainfunctionbatch([train,255.,theano.config.floatX],None,[trainl,255.
                 batchsize=batchsize)
 
 for i in range(n):
-    print g1(i),i
+    print >> sys.stderr, g1(i),i
 
 for i in range(n):
-    print g1(i),i
+    print >> sys.stderr, g1(i),i
 
 
 a1.ModeAux(3,update_type='special',lr=0.001)
@@ -108,13 +109,13 @@ g1,n = a1.trainfunctionbatch([train,255.,theano.config.floatX],None,[trainl,255.
                 batchsize=batchsize)
 
 for i in range(n):
-    print g1(i),i
+    print >> sys.stderr, g1(i),i
 
 for i in range(n):
-    print g1(i),i
+    print >> sys.stderr, g1(i),i
 
 for i in range(n):
-    print g1(i),i
+    print >> sys.stderr, g1(i),i
 
 import pygame
 import numpy
@@ -161,18 +162,18 @@ for i in range(1000):
     ##theano.printing.pydotprint(g, outfile='/u/glorotxa/youp2.png')
     #err = 1
     #if b:
-        #print 1
+        #print >> sys.stderr, 1
         #f1 = a1.errorfunction(test,testl)
-        #print 2
+        #print >> sys.stderr, 2
         #f2 = a2.errorfunction(test,testl)
     #else:
-        #print 1
+        #print >> sys.stderr, 1
         #f1 = a1.costfunction(test,testl)
-        #print 2
+        #print >> sys.stderr, 2
         #f2 = a2.costfunction(test,testl,test)
     #err1 = [f1()]
     #err2 = [f2()]
-    #print a2.layers[-1].W_upmask.value.min(),a2.layers[-1].W_upmask.value.max(),\
+    #print >> sys.stderr, a2.layers[-1].W_upmask.value.min(),a2.layers[-1].W_upmask.value.max(),\
             #a2.layers[-2].W_upmask.value.min(),a2.layers[-2].W_upmask.value.max()
     #epoch = 0
     #errref1 = 10000000000
@@ -180,7 +181,7 @@ for i in range(1000):
     #t=time.time()
     #while epoch<=maxi:
         #for i in range(n):
-            #print g1(i),g2(i), 'epoch:', epoch, 'err:',errref1,errref2 , i
+            #print >> sys.stderr, g1(i),g2(i), 'epoch:', epoch, 'err:',errref1,errref2 , i
         #epoch += 1
         #err1 += [f1()]
         #err2 += [f2()]
@@ -198,12 +199,12 @@ for i in range(1000):
 
 #a.ModeUnsup(1,0,0.25,'global',lr=0.0005)
 #t1=training(a,train,trainl,test,testl,maxi = 10,batchsize=10)
-#print t1
+#print >> sys.stderr, t1
 
 #a.ModeUnsup(2,1,0.25,'global',lr=0.0005)
 #t2=training(a,train,trainl,test,testl,maxi = 10,batchsize=10)
-#print t2
+#print >> sys.stderr, t2
 
 #a.ModeUnsup(1,0,0.25,'global',lr=0.0005,unsup_scaling=0.5)
 #t3=training(a,train,trainl,test,testl,maxi = 10,batchsize=10)
-#print t3
+#print >> sys.stderr, t3
