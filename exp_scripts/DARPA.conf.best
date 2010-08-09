@@ -1,0 +1,49 @@
+# One lr per layer in the architecture. 
+lr = [0.01,0.001,0.0001]
+act = ['tanh','tanh','rectifier']
+depth = 3
+n_hid = [1400,2500,4000]
+
+# One noise type per layer in the architecture. 'binomial_NLP' is salt-and-pepper noise. 'binomial' means simply overwrite with a binomial score.
+noise = ['binomial_NLP','binomial','binomial']
+noise_lvl = [(0.7,0.0041),0.5,0.3]
+
+weight_regularization_type = 'l2'
+weight_regularization_coeff = [0.0,0.0,0.0,0.0]
+activation_regularization_type = 'l1'
+activation_regularization_coeff = [0.0,0.0,0.01]
+
+# Number of pretraining epochs, one-per-layer
+nepochs = [30,30,4]
+
+# For each layer, a list of the epochs at which you evaluate the
+# reconstruction error and linear-SVM-supervised error.
+# All the different results you have from here will be stored in a
+# separate file per layer.
+epochstest = [[0,2,4,8,15,30],[0,2,4,8,15,30],[0,1,2,3,4]]
+
+batchsize = 10
+
+# The total number of files into which the training set is broken
+nb_files = 15
+path_data = '/u/glorotxa/work/NLP/DARPAproject/'
+# Train and test (validation) here should be disjoint subsets of the
+# original full training set.
+name_traindata = 'OpenTable_5000_train_instances'
+name_trainlabel =  'OpenTable_5000_train_labels'
+name_testdata = 'OpenTable_5000_test_instances'
+name_testlabel = 'OpenTable_5000_test_labels'
+
+# If there is a model file specified to build upon, the output of this
+# model is the input for the model we are currently building.
+model_to_build_upon = None
+
+ninputs = 5000
+
+# inputtype ('binary', 'tfidf', other options?) determines what the
+# decoding activation function is for the first layer
+# e.g. inputtype 'tfidf' ('tf*idf'?) uses activation function softplus
+# to decode the tf*idf.
+inputtype = 'binary'
+
+seed = 123
