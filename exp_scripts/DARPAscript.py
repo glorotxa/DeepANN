@@ -24,13 +24,13 @@ def rebuildunsup(model,depth,ACT,LR,NOISE_LVL,batchsize,train):
         else:
             #no rescaling needed if sigmoid
             givens.update({model.auxtarget : model.layers[depth-1].out})
-        trainfunc = theano.function([index],[model.cost],updates = model.updates, givens = givens)
-        testfunc = theano.function([index],[model.cost], givens = givens)
+        trainfunc = theano.function([index],model.cost,updates = model.updates, givens = givens)
+        testfunc = theano.function([index],model.cost, givens = givens)
         n = train.value.shape[0] / batchsize
         def tes():
             sum=0
             for i in range(train.value.shape[0]/100):
-                sum+=testfunc(i)[0]
+                sum+=testfunc(i)
             return sum/float(i+1)
     else:
         trainfunc,n = model.trainfunctionbatch(train,None,train, batchsize=batchsize)
@@ -246,10 +246,12 @@ def NLPSDAE(state,channel):
         else:
             n_aux = model.layers[i-1].n_out
         if i==0 and INPUTTYPE == 'tfidf':
+            model.depth_max = model.depth_max+1
             model.reconstruction_cost = 'quadratic'
             model.reconstruction_cost_fn = eval('quadratic_cost')
             model.auxiliary(init=1,auxact='softplus',auxdepth=-DEPTH+i+1, auxn_out=n_aux)
         else:
+            model.depth_max = model.depth_max+1
             model.reconstruction_cost = 'cross_entropy'
             model.reconstruction_cost_fn = eval('cross_entropy_cost')
             model.auxiliary(init=1,auxdepth=-DEPTH+i+1, auxn_out=n_aux)
@@ -268,8 +270,9 @@ def NLPSDAE(state,channel):
             err1000.update({0:(C,testerr,testerrdev,trainerr,trainerrdev)})
             C,testerr,testerrdev,trainerr,trainerrdev = dosvm(10000,datatrainsave,datatestsave,PATH_SAVE)
             err10000.update({0:(C,testerr,testerrdev,trainerr,trainerrdev)})
-            
-            trainfunc,n,tes = rebuildunsup(model,i,ACT,LR[i],NOISE_LVL[i],BATCHSIZE,train)
+        
+        trainfunc,n,tes = rebuildunsup(model,i,ACT,LR[i],NOISE_LVL[i],BATCHSIZE,train)
+        if 0 in EPOCHSTEST[i]:
             rec.update({0:tes()})
             
             print '########## INITIAL TEST ############  : '
