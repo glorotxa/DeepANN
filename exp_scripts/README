@@ -3,13 +3,18 @@ Regarding exp_script/DARPAscript.py and DARPA.conf.sample...
 
 NOTE: We should renamed "test" to "validation" throughout.
 
+NOTE:
+    * You should use have this Python library in your PYTHONPATH:
+        http://github.com/turian/common
+
 The simple command to lauch the script properly is:
 
-    THEANO_FLAGS=mode=FAST_RUN,device=gpu0,floatX=float32 jobman cmdline DARPAscript.NLPSDAE DARPA.conf
+    THEANO_FLAGS=mode=FAST_RUN,device=gpu0,floatX=float32 jobman cmdline DARPAscript.NLPSDAE DARPA-fast.conf
 
 - gpu0 means select the first GPU device.
-- DARPA.conf is the conf file where your hyperparameters are
-  specified.  You can overwrite values specified by the .conf file by
+- DARPA-fast.conf is the conf file where your hyperparameters are
+  specified. This is script that is fast to train.
+  You can overwrite values specified by the .conf file by
   adding hyperparam choices to the end of the command-line.
 
   If you want to experiment over different *sets* of hyperparameters,

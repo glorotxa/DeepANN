@@ -5,9 +5,12 @@ except ImportError:
 import cPickle
 import os
 import time
+import sys
 
 from jobman.tools import DD,expand
 from jobman.parse import filemerge
+
+from common.stats import stats
 
 #hardcoded path to your liblinear source:
 svmpath = '/u/glorotxa/work/NLP/DARPAproject/netscale_sentiment_for_ET/lib/liblinear/' 
@@ -38,7 +41,8 @@ def rebuildunsup(model,depth,ACT,LR,NOISE_LVL,batchsize,train):
     return trainfunc,n,tes
 
 def createlibsvmfile(model,depth,datafiles,dataout):
-    print >> sys.stderr, 'CREATE libsvm files'
+    print >> sys.stderr, 'Creating libsvm file %s (model=%s, depth=%d, datafiles=%s)...' % (repr(dataout), repr(model),depth,datafiles)
+    print >> sys.stderr, stats()
     outputs = [model.layers[depth].out]
     func = theano.function([model.inp],outputs)
     f = open(datafiles[0],'r')
@@ -60,7 +64,8 @@ def createlibsvmfile(model,depth,datafiles,dataout):
         f.write(textr)
     del instances,labels
     f.close()
-    print >> sys.stderr, 'CREATION done'
+    print >> sys.stderr, "...done creating libsvm files"
+    print >> sys.stderr, stats()
 
 def dosvm(nbinputs,datatrainsave,datatestsave,PATH_SAVE):
     if nbinputs == 100:
@@ -72,6 +77,7 @@ def dosvm(nbinputs,datatrainsave,datatestsave,PATH_SAVE):
     print >> sys.stderr, 'BEGIN SVM for %s examples'%nbinputs
     C = 0.01
     print >> sys.stderr, C , '-----------------------------------------------------------------'
+    print >> sys.stderr, stats()
     os.system('%srun_all -s 4 -c %s -l %s -r %s -q %s %s %s'%(svmpath,C,nbinputs,NUMRUNS,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
     f = open(PATH_SAVE+'/currentsvm.txt','r')
     a=f.readline()[:-1]
@@ -86,6 +92,7 @@ def dosvm(nbinputs,datatrainsave,datatestsave,PATH_SAVE):
     
     C = 0.001
     print >> sys.stderr, C  , '-----------------------------------------------------------------'
+    print >> sys.stderr, stats()
     os.system('%srun_all -s 4 -c %s -l %s -r %s -q %s %s %s'%(svmpath,C,nbinputs,NUMRUNS,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
     f = open(PATH_SAVE+'/currentsvm.txt','r')
     a=f.readline()[:-1]
@@ -102,6 +109,7 @@ def dosvm(nbinputs,datatrainsave,datatestsave,PATH_SAVE):
         C = 0.1        
         while testerr[-1] < testerr[-2] and C<100000:
             print >> sys.stderr, C , '-----------------------------------------------------------------'
+            print >> sys.stderr, stats()
             os.system('%srun_all -s 4 -c %s -l %s -r %s -q %s %s %s'%(svmpath,C,nbinputs,NUMRUNS,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
             f = open(PATH_SAVE+'/currentsvm.txt','r')
             a=f.readline()[:-1]
@@ -122,6 +130,7 @@ def dosvm(nbinputs,datatrainsave,datatestsave,PATH_SAVE):
         C=0.0001
         while testerr[0] < testerr[1] and C>0.000001:
             print >> sys.stderr, C , '-----------------------------------------------------------------'
+            print >> sys.stderr, stats()
             os.system('%srun_all -s 4 -c %s -l %s -r %s -q %s %s %s'%(svmpath,C,nbinputs,NUMRUNS,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
             f = open(PATH_SAVE+'/currentsvm.txt','r')
             a=f.readline()[:-1]
@@ -222,6 +231,7 @@ def NLPSDAE(state,channel):
     #RELOAD previous model
     for i in range(depthbegin):
         print >> sys.stderr, 'reload layer',i+1
+        print >> sys.stderr, stats()
         model.layers[i].W.value = cPickle.load(open(MODEL_RELOAD + 'Layer%s_W.pkl'%(i+1),'r'))
         model.layers[i].b.value = cPickle.load(open(MODEL_RELOAD + 'Layer%s_b.pkl'%(i+1),'r'))
         model.layers[i].mask.value = cPickle.load(open(MODEL_RELOAD + 'Layer%s_mask.pkl'%(i+1),'r'))
@@ -241,6 +251,7 @@ def NLPSDAE(state,channel):
     
     for i in xrange(depthbegin,DEPTH):
         print >> sys.stderr, '-----------------------------BEGIN DEPTH:',i+1
+        print >> sys.stderr, stats()
         if i == 0:
             n_aux = NINPUTS
         else:
@@ -283,6 +294,7 @@ def NLPSDAE(state,channel):
             print >> sys.stderr, 'CURRENT 100 SVM ERROR: ',err100[0]
             print >> sys.stderr, 'CURRENT 1000 SVM ERROR: ',err1000[0]
             print >> sys.stderr, 'CURRENT 10000 SVM ERROR: ',err10000[0]
+            print >> sys.stderr, stats()
             
         for cc in range(NEPOCHS[i]):
             time1 = time.time()
@@ -307,7 +319,9 @@ def NLPSDAE(state,channel):
                 for j in range(currentn/BATCHSIZE):
                     dum = trainfunc(j)
                 print >> sys.stderr, 'File:',p,time.time()-time2, '----'
+                print >> sys.stderr, stats()
             print >> sys.stderr, '-----------------------------epoch',cc+1,'time',time.time()-time1
+            print >> sys.stderr, stats()
             if cc+1 in EPOCHSTEST[i]:
                 trainfunc,n,tes = rebuildunsup(model,i,ACT,LR[i],None,BATCHSIZE,train)
                 createlibsvmfile(model,i,datatrain,datatrainsave)
@@ -329,6 +343,7 @@ def NLPSDAE(state,channel):
                 print >> sys.stderr, 'CURRENT 100 SVM ERROR: ',err100[cc+1]
                 print >> sys.stderr, 'CURRENT 1000 SVM ERROR: ',err1000[cc+1]
                 print >> sys.stderr, 'CURRENT 10000 SVM ERROR: ',err10000[cc+1]
+                print >> sys.stderr, stats()
                 f = open('depth%serr.pkl'%i,'w')
                 cPickle.dump(rec,f,-1)
                 cPickle.dump(err100,f,-1)
