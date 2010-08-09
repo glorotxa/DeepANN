@@ -254,6 +254,9 @@ def NLPSDAE(state,channel):
             model.depth_max = model.depth_max+1
             model.reconstruction_cost = 'cross_entropy'
             model.reconstruction_cost_fn = eval('cross_entropy_cost')
+            if model.auxlayer != None:
+                del model.auxlayer.W
+                del model.auxlayer.b
             model.auxiliary(init=1,auxdepth=-DEPTH+i+1, auxn_out=n_aux)
         
         rec = {}
@@ -334,37 +337,46 @@ def NLPSDAE(state,channel):
                 f.close()
                 os.mkdir(PATH_SAVE+'/depth%spre%s'%(i+1,cc+1))
                 model.save(PATH_SAVE+'/depth%spre%s'%(i+1,cc+1))
-        recmin = numpy.min(rec.values())
-        for k in rec.keys():
-            if rec[k] == recmin:
-                state.bestrec += [recmin]
-                state.bestrecepoch += [k]
-        
-        errvector = err100.values()
-        for k in range(len(errvector)):
-            errvector[k] = errvector[k][1]
-        errmin = numpy.min(errvector)
-        for k in err100.keys():
-            if err100[k][1] == errmin:
-                state.besterr100 += [err100[k]]
-                state.besterr100epoch += [k]
-        
-        errvector = err1000.values()
-        for k in range(len(errvector)):
-            errvector[k] = errvector[k][1]
-        errmin = numpy.min(errvector)
-        for k in err1000.keys():
-            if err1000[k][1] == errmin:
-                state.besterr1000 += [err1000[k]]
-                state.besterr1000epoch += [k]
-        
-        errvector = err10000.values()
-        for k in range(len(errvector)):
-            errvector[k] = errvector[k][1]
-        errmin = numpy.min(errvector)
-        for k in err10000.keys():
-            if err10000[k][1] == errmin:
-                state.besterr10000 += [err10000[k]]
-                state.besterr10000epoch += [k]
-
+        if len(EPOCHSTEST[i])!=0:
+            recmin = numpy.min(rec.values())
+            for k in rec.keys():
+                if rec[k] == recmin:
+                    state.bestrec += [recmin]
+                    state.bestrecepoch += [k]
+            
+            errvector = err100.values()
+            for k in range(len(errvector)):
+                errvector[k] = errvector[k][1]
+            errmin = numpy.min(errvector)
+            for k in err100.keys():
+                if err100[k][1] == errmin:
+                    state.besterr100 += [err100[k]]
+                    state.besterr100epoch += [k]
+            
+            errvector = err1000.values()
+            for k in range(len(errvector)):
+                errvector[k] = errvector[k][1]
+            errmin = numpy.min(errvector)
+            for k in err1000.keys():
+                if err1000[k][1] == errmin:
+                    state.besterr1000 += [err1000[k]]
+                    state.besterr1000epoch += [k]
+            
+            errvector = err10000.values()
+            for k in range(len(errvector)):
+                errvector[k] = errvector[k][1]
+            errmin = numpy.min(errvector)
+            for k in err10000.keys():
+                if err10000[k][1] == errmin:
+                    state.besterr10000 += [err10000[k]]
+                    state.besterr10000epoch += [k]
+        else:
+            state.bestrec +=[None]
+            state.bestrecepoch += [None]
+            state.besterr100 += [None]
+            state.besterr100epoch += [None]
+            state.besterr1000 += [None]
+            state.besterr1000epoch += [None]
+            state.besterr10000 += [None]
+            state.besterr10000epoch += [None] 
     return channel.COMPLETE
