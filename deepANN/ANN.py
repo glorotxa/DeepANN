@@ -724,7 +724,9 @@ class SDAE(object):
             self.aux_active = False
             self.auxdepth = None
             self.auxlayertype = None
-            self.auxlayer = None
+	    if self.auxlayer != None:
+	      del self.auxlayer
+	    self.auxlayer = None
             self.auxtarget = None
             self.aux_scaling = None
             self.aux_one_sided = None
@@ -843,7 +845,7 @@ class SDAE(object):
         else:
             givens.update({self.inp:data[index*batchsize:(index+1)*batchsize]})
         # allocate symbolic variables for the data
-        func = theano.function([index], self.cost, updates = self.updates, givens = givens)
+        func = theano.function([index], self.cost, givens = givens)
         def func2():
             cost = 0
             for i in range(n_max):
