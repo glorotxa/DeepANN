@@ -34,14 +34,14 @@ epochstest = [[0,2,4,8,15,30],[0,2,4,8,15,30],[0,1,2,3,4,8,15,30]]
 batchsize = 10
 
 # The total number of files into which the training set is broken
-nb_files = 38 
+nb_files = 15 
 path_data = '/u/glorotxa/work/NLP/DARPAproject/'
 # Train and test (validation) here should be disjoint subsets of the
 # original full training set.
-name_traindata = 'OpenTable_5000_train2_instances'
-name_trainlabel =  'OpenTable_5000_train2_labels'
-name_testdata = 'OpenTable_5000_test2_instances'
-name_testlabel = 'OpenTable_5000_test2_labels'
+name_traindata = 'OpenTable_5000_train_instances'
+name_trainlabel =  'OpenTable_5000_train_labels'
+name_testdata = 'OpenTable_5000_test_instances'
+name_testlabel = 'OpenTable_5000_test_labels'
 
 # If there is a model file specified to build upon, the output of this
 # model is the input for the model we are currently building.
