@@ -66,11 +66,11 @@ def createlibsvmfile(model,depth,datafiles,dataout):
     f.close()
     f = open(dataout,'w')
     # TODO: What is this magic number 10000 and 500?
-    for i in range(NB_MAX_TRAINING_EXAMPLES_SVM/BATCH_CREATIONLIBSVM):
+    for i in range(NB_MAX_TRAINING_EXAMPLES_SVM/BATCH_CREATION_LIBSVM):
         textr = ''
-        rep = func(instances[BATCH_CREATIONLIBSVM*i:BATCH_CREATIONLIBSVM*(i+1),:])[0]
+        rep = func(instances[BATCH_CREATION_LIBSVM*i:BATCH_CREATION_LIBSVM*(i+1),:])[0]
         for l in range(rep.shape[0]):
-            textr += '%s '%labels[BATCH_CREATIONLIBSVM*i+l]
+            textr += '%s '%labels[BATCH_CREATION_LIBSVM*i+l]
             idx = rep[l,:].nonzero()[0]
             for j,v in zip(idx,rep[l,idx]):
                 textr += '%s:%s '%(j,v)
