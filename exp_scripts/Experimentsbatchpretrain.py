@@ -176,8 +176,9 @@ def finetuning(state,channel):
         model.load(state.loadpath)
     model.ModeSup(state.depth,state.depth,update_type='global',lr=state.sup_lr)
     trainfunc,n = model.trainfunctionbatch(train,trainl,None,state.batchsize)
-    testfunc = model.costfunction(test,testl,batchsize=50)
-    validfunc = model.costfunction(valid,validl,batchsize=50)
+    theano.printing.debugprint(trainfunc)
+    testfunc = model.errorfunction(test,testl,batchsize=50)
+    validfunc = model.errorfunction(valid,validl,batchsize=50)
     
     state.testerr = testfunc()
     state.validerr = validfunc()
