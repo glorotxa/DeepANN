@@ -272,8 +272,9 @@ def NLPSDAE(state,channel):
             model.auxiliary(init=1,auxact='softplus',auxdepth=-DEPTH+i+1, auxn_out=n_aux)
         else:
             model.depth_max = model.depth_max+1
-            model.reconstruction_cost = 'cross_entropy'
-            model.reconstruction_cost_fn = cross_entropy_cost
+            if i==1 and INPUTTYPE == 'tfidf':
+                model.reconstruction_cost = 'cross_entropy'
+                model.reconstruction_cost_fn = cross_entropy_cost
             if model.auxlayer != None:
                 del model.auxlayer.W
                 del model.auxlayer.b
