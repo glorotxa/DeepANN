@@ -313,11 +313,11 @@ def NLPSDAE(state,channel):
                 # In which case, we pad the matrix but keep track of how many n (instances) there actually are.
                 # TODO: Also want to pad trainl
                 if object.shape == normalshape:
-                    train.value = object
+                    train.container.value[:] = object
                     currentn = normalshape[0]
                     del object
                 else:
-                    train.value = numpy.concatenate([object,\
+                    train.container.value[:] = numpy.concatenate([object,\
                         numpy.zeros((normalshape[0]-object.shape[0],normalshape[1]),dtype=theano.config.floatX)])
                     currentn = object.shape[0]
                     del object
@@ -340,7 +340,7 @@ def NLPSDAE(state,channel):
 
                 trainfunc,n,tes = rebuildunsup(model,i,ACT,LR[i],NOISE_LVL[i],BATCHSIZE,train)
                 f =open(PATH_DATA + NAME_DATATEST +'_1.pkl','r')
-                train.value = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
+                train.container.value[:] = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
                 f.close()
                 rec.update({cc+1:tes()})
                 # TODO: Dedup this code with above copy
