@@ -23,8 +23,9 @@ BATCH_TEST = 100
 BATCH_CREATION_LIBSVM = 500
 NB_MAX_TRAINING_EXAMPLES_SVM = 10000
 
-SVM_FACTOR_VALIDATE_C = 10.
-SVM_BEGIN_C = 0.01
+SVM_INITIALC    = 0.01
+SVM_STEPFACTOR  = 10.
+SVM_MAXSTEPS    = 20
 
 
 def rebuildunsup(model,depth,ACT,LR,NOISE_LVL,batchsize,train):
@@ -100,7 +101,7 @@ def svm_validation_for_one_C(C, nbinputs,numruns,datatrainsave,datatestsave,PATH
     return testerr,testerrdev,trainerr,trainerrdev
 
 
-def svm_validation(nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE,MAXSTEPS=20,STEPFACTOR=10, INITIALC=0.01):
+def svm_validation(nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE,MAXSTEPS=SVM_MAXSTEPS,STEPFACTOR=SVM_STEPFACTOR, INITIALC=SVM_INITIALC):
     """
     Train an SVM on nbinputs training examples, for numrums runs.
     Choose the value of C using a linesearch to minimize the testerr.
