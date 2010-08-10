@@ -18,6 +18,13 @@ SVMPATH = '/u/glorotxa/work/NLP/DARPAproject/netscale_sentiment_for_ET/lib/libli
 SVMRUNALL_PATH = os.path.join(SVMPATH, "run_all")
 assert os.access(SVMRUNALL_PATH, os.X_OK)
 
+BATCH_TEST = 100
+BATCH_CREATION_LIBSVM = 500
+NB_MAX_TRAINING_EXAMPLES_SVM = 10000
+
+SVM_FACTOR_VALIDATE_C = 10.
+SVM_BEGIN_C = 0.01
+
 
 def rebuildunsup(model,depth,ACT,LR,NOISE_LVL,batchsize,train):
     model.ModeAux(depth+1,update_type='special',noise_lvl=NOISE_LVL,lr=LR)
@@ -37,13 +44,13 @@ def rebuildunsup(model,depth,ACT,LR,NOISE_LVL,batchsize,train):
         def tes():
             sum=0
             # TODO: What is this magic number 100?
-            for i in range(train.value.shape[0]/100):
+            for i in range(train.value.shape[0]/BATCH_TEST):
                 sum+=testfunc(i)
             return sum/float(i+1)
     else:
         trainfunc,n = model.trainfunctionbatch(train,None,train, batchsize=batchsize)
         # TODO: What is this magic number 100?
-        tes = model.costfunction(train,None,train, batchsize=100)
+        tes = model.costfunction(train,None,train, batchsize=BATCH_TEST)
     return trainfunc,n,tes
 
 def createlibsvmfile(model,depth,datafiles,dataout):
@@ -59,11 +66,11 @@ def createlibsvmfile(model,depth,datafiles,dataout):
     f.close()
     f = open(dataout,'w')
     # TODO: What is this magic number 10000 and 500?
-    for i in range(10000/500):
+    for i in range(NB_MAX_TRAINING_EXAMPLES_SVM/BATCH_CREATIONLIBSVM):
         textr = ''
-        rep = func(instances[500*i:500*(i+1),:])[0]
+        rep = func(instances[BATCH_CREATIONLIBSVM*i:BATCH_CREATIONLIBSVM*(i+1),:])[0]
         for l in range(rep.shape[0]):
-            textr += '%s '%labels[500*i+l]
+            textr += '%s '%labels[BATCH_CREATIONLIBSVM*i+l]
             idx = rep[l,:].nonzero()[0]
             for j,v in zip(idx,rep[l,idx]):
                 textr += '%s:%s '%(j,v)
@@ -78,7 +85,7 @@ def dosvm(nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE):
     # TODO: Rewrite with a proper linesearch
 
     print >> sys.stderr, 'BEGIN SVM for %s examples'%nbinputs
-    C = 0.01
+    C = SVM_BEGIN_C
     print >> sys.stderr, C , '-----------------------------------------------------------------'
     print >> sys.stderr, stats()
     os.system('%s -s 4 -c %s -l %s -r %s -q %s %s %s'%(SVMRUNALL_PATH,C,nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
@@ -93,7 +100,7 @@ def dosvm(nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE):
     testerrdev = [float(res[4])]
     Clist=[C]
 
-    C = 0.001
+    C = C / SVM_FACTOR_VALIDATE_C
     print >> sys.stderr, C  , '-----------------------------------------------------------------'
     print >> sys.stderr, stats()
     os.system('%s -s 4 -c %s -l %s -r %s -q %s %s %s'%(SVMRUNALL_PATH,C,nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
@@ -109,7 +116,7 @@ def dosvm(nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE):
     Clist=[C] + Clist
 
     if testerr[1] < testerr[0]:
-        C = 0.1
+        C = SVM_BEGIN_C * SVM_FACTOR_VALIDATE_C
         while testerr[-1] < testerr[-2] and C<100000:
             print >> sys.stderr, C , '-----------------------------------------------------------------'
             print >> sys.stderr, stats()
@@ -124,13 +131,13 @@ def dosvm(nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE):
             testerr += [float(res[3])]
             testerrdev += [float(res[4])]
             Clist+=[C]
-            C=C*10
+            C=C*SVM_FACTOR_VALIDATE_C
         if C!=100000:
             return Clist[-2],testerr[-2],testerrdev[-2],trainerr[-2],trainerrdev[-2]
         else:
             return Clist[-1],testerr[-1],testerrdev[-1],trainerr[-1],trainerrdev[-1]
     else:
-        C=0.0001
+        C= SVM_BEGIN_C / (SVM_FACTOR_VALIDATE_C) ** 2
         while testerr[0] < testerr[1] and C>0.000001:
             print >> sys.stderr, C , '-----------------------------------------------------------------'
             print >> sys.stderr, stats()
@@ -145,7 +152,7 @@ def dosvm(nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE):
             testerr = [float(res[3])] + testerr
             testerrdev = [float(res[4])] + testerrdev
             Clist=[C] + Clist
-            C=C*0.1
+            C=C/SVM_FACTOR_VALIDATE_C
         if C != 0.000001:
             return Clist[1],testerr[1],testerrdev[1],trainerr[1],trainerrdev[1]
         else:
