@@ -357,9 +357,9 @@ def NLPSDAE(state,channel):
 
         for epoch in range(1, NEPOCHS[depth]+1):
             time1 = time.time()
-            for p in xrange(1,NB_FILES + 1):
+            for filenb in xrange(1,NB_FILES + 1):
                 time2=time.time()
-                f =open(PATH_DATA + NAME_DATA +'_%s.pkl'%p,'r')
+                f =open(PATH_DATA + NAME_DATA +'_%s.pkl'%filenb,'r')
                 object = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
                 # The last training file is not of the same shape as the other training files.
                 # So, to avoid a GPU memory error, we want to make sure it is the same size.
@@ -377,7 +377,7 @@ def NLPSDAE(state,channel):
                 f.close()
                 for j in range(currentn/BATCHSIZE):
                     dum = TRAINFUNC(j)
-                print >> sys.stderr, 'File:',p,time.time()-time2, '----'
+                print >> sys.stderr, 'File:',filenb,time.time()-time2, '----'
                 print >> sys.stderr, stats()
             print >> sys.stderr, '...finished training epoch #%s' % percent(epoch, NEPOCHS[depth])
             print >> sys.stderr, stats()
