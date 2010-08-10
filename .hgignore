@@ -1,2 +1,4 @@
 syntax: glob
+jobman*
 *.pyc
+*.sw?
