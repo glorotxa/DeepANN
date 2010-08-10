@@ -355,7 +355,7 @@ def NLPSDAE(state,channel):
         if epoch in EPOCHSTEST[depth]:
             svm_validation(err, reconstruction_error, epoch, model, depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE)
 
-        for epoch in range(1, NEPOCHS[depth]+1):
+        for epoch in xrange(1,NEPOCHS[depth]+1):
             time1 = time.time()
             for filenb in xrange(1,NB_FILES + 1):
                 time2=time.time()
