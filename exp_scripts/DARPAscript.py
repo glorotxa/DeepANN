@@ -19,6 +19,13 @@ SVMPATH = '/u/glorotxa/work/NLP/DARPAproject/netscale_sentiment_for_ET/lib/libli
 SVMRUNALL_PATH = os.path.join(SVMPATH, "run_all")
 assert os.access(SVMRUNALL_PATH, os.X_OK)
 
+BATCH_TEST = 100
+BATCH_CREATION_LIBSVM = 500
+NB_MAX_TRAINING_EXAMPLES_SVM = 10000
+
+SVM_FACTOR_VALIDATE_C = 10.
+SVM_BEGIN_C = 0.01
+
 
 def rebuildunsup(model,depth,ACT,LR,NOISE_LVL,batchsize,train):
     model.ModeAux(depth+1,update_type='special',noise_lvl=NOISE_LVL,lr=LR)
@@ -38,13 +45,13 @@ def rebuildunsup(model,depth,ACT,LR,NOISE_LVL,batchsize,train):
         def tes():
             sum=0
             # TODO: What is this magic number 100?
-            for i in range(train.value.shape[0]/100):
+            for i in range(train.value.shape[0]/BATCH_TEST):
                 sum+=testfunc(i)
             return sum/float(i+1)
     else:
         trainfunc,n = model.trainfunctionbatch(train,None,train, batchsize=batchsize)
         # TODO: What is this magic number 100?
-        tes = model.costfunction(train,None,train, batchsize=100)
+        tes = model.costfunction(train,None,train, batchsize=BATCH_TEST)
     return trainfunc,n,tes
 
 def createlibsvmfile(model,depth,datafiles,dataout):
@@ -60,11 +67,11 @@ def createlibsvmfile(model,depth,datafiles,dataout):
     f.close()
     f = open(dataout,'w')
     # TODO: What is this magic number 10000 and 500?
-    for i in range(10000/500):
+    for i in range(NB_MAX_TRAINING_EXAMPLES_SVM/BATCH_CREATION_LIBSVM):
         textr = ''
-        rep = func(instances[500*i:500*(i+1),:])[0]
+        rep = func(instances[BATCH_CREATION_LIBSVM*i:BATCH_CREATION_LIBSVM*(i+1),:])[0]
         for l in range(rep.shape[0]):
-            textr += '%s '%labels[500*i+l]
+            textr += '%s '%labels[BATCH_CREATION_LIBSVM*i+l]
             idx = rep[l,:].nonzero()[0]
             for j,v in zip(idx,rep[l,idx]):
                 textr += '%s:%s '%(j,v)
@@ -262,12 +269,13 @@ def NLPSDAE(state,channel):
         if i==0 and INPUTTYPE == 'tfidf':
             model.depth_max = model.depth_max+1
             model.reconstruction_cost = 'quadratic'
-            model.reconstruction_cost_fn = eval('quadratic_cost')
+            model.reconstruction_cost_fn = quadratic_cost
             model.auxiliary(init=1,auxact='softplus',auxdepth=-DEPTH+i+1, auxn_out=n_aux)
         else:
             model.depth_max = model.depth_max+1
-            model.reconstruction_cost = 'cross_entropy'
-            model.reconstruction_cost_fn = eval('cross_entropy_cost')
+            if i==1 and INPUTTYPE == 'tfidf':
+                model.reconstruction_cost = 'cross_entropy'
+                model.reconstruction_cost_fn = cross_entropy_cost
             if model.auxlayer != None:
                 del model.auxlayer.W
                 del model.auxlayer.b
@@ -306,11 +314,11 @@ def NLPSDAE(state,channel):
                 # In which case, we pad the matrix but keep track of how many n (instances) there actually are.
                 # TODO: Also want to pad trainl
                 if object.shape == normalshape:
-                    train.value = object
+                    train.container.value[:] = object
                     currentn = normalshape[0]
                     del object
                 else:
-                    train.value = numpy.concatenate([object,\
+                    train.container.value[:] = numpy.concatenate([object,\
                         numpy.zeros((normalshape[0]-object.shape[0],normalshape[1]),dtype=theano.config.floatX)])
                     currentn = object.shape[0]
                     del object
@@ -333,7 +341,7 @@ def NLPSDAE(state,channel):
 
                 trainfunc,n,tes = rebuildunsup(model,i,ACT,LR[i],NOISE_LVL[i],BATCHSIZE,train)
                 f =open(PATH_DATA + NAME_DATATEST +'_1.pkl','r')
-                train.value = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
+                train.container.value[:] = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
                 f.close()
                 rec.update({cc+1:tes()})
                 # TODO: Dedup this code with above copy
