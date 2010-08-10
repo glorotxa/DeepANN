@@ -261,7 +261,7 @@ def NLPSDAE(state,channel):
     channel.save()
 
     for depth in xrange(depthbegin,DEPTH):
-        print >> sys.stderr, '-----------------------------BEGIN DEPTH:',i+1
+        print >> sys.stderr, '-----------------------------BEGIN DEPTH:',depth+1
         print >> sys.stderr, stats()
         if depth == 0:
             n_aux = NINPUTS
