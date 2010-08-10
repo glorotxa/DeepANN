@@ -4,6 +4,7 @@ except ImportError:
     from deepANN.ANN import *
 import cPickle
 import os
+import os.path
 import time
 import sys
 
@@ -14,6 +15,9 @@ from common.stats import stats
 
 #hardcoded path to your liblinear source:
 svmpath = '/u/glorotxa/work/NLP/DARPAproject/netscale_sentiment_for_ET/lib/liblinear/' 
+
+svmrunall_path = os.path.join(svmpath, "run_all")
+assert os.access(svmrunall_path, os.X_OK)
 
 def rebuildunsup(model,depth,ACT,LR,NOISE_LVL,batchsize,train):
     model.ModeAux(depth+1,update_type='special',noise_lvl=NOISE_LVL,lr=LR)
@@ -78,7 +82,7 @@ def dosvm(nbinputs,datatrainsave,datatestsave,PATH_SAVE):
     C = 0.01
     print >> sys.stderr, C , '-----------------------------------------------------------------'
     print >> sys.stderr, stats()
-    os.system('%srun_all -s 4 -c %s -l %s -r %s -q %s %s %s'%(svmpath,C,nbinputs,NUMRUNS,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
+    os.system('%s -s 4 -c %s -l %s -r %s -q %s %s %s'%(svmrunall_path,C,nbinputs,NUMRUNS,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
     f = open(PATH_SAVE+'/currentsvm.txt','r')
     a=f.readline()[:-1]
     f.close()
@@ -93,7 +97,7 @@ def dosvm(nbinputs,datatrainsave,datatestsave,PATH_SAVE):
     C = 0.001
     print >> sys.stderr, C  , '-----------------------------------------------------------------'
     print >> sys.stderr, stats()
-    os.system('%srun_all -s 4 -c %s -l %s -r %s -q %s %s %s'%(svmpath,C,nbinputs,NUMRUNS,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
+    os.system('%s -s 4 -c %s -l %s -r %s -q %s %s %s'%(svmrunall_path,C,nbinputs,NUMRUNS,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
     f = open(PATH_SAVE+'/currentsvm.txt','r')
     a=f.readline()[:-1]
     f.close()
@@ -110,7 +114,7 @@ def dosvm(nbinputs,datatrainsave,datatestsave,PATH_SAVE):
         while testerr[-1] < testerr[-2] and C<100000:
             print >> sys.stderr, C , '-----------------------------------------------------------------'
             print >> sys.stderr, stats()
-            os.system('%srun_all -s 4 -c %s -l %s -r %s -q %s %s %s'%(svmpath,C,nbinputs,NUMRUNS,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
+            os.system('%s -s 4 -c %s -l %s -r %s -q %s %s %s'%(svmrunall_path,C,nbinputs,NUMRUNS,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
             f = open(PATH_SAVE+'/currentsvm.txt','r')
             a=f.readline()[:-1]
             f.close()
@@ -131,7 +135,7 @@ def dosvm(nbinputs,datatrainsave,datatestsave,PATH_SAVE):
         while testerr[0] < testerr[1] and C>0.000001:
             print >> sys.stderr, C , '-----------------------------------------------------------------'
             print >> sys.stderr, stats()
-            os.system('%srun_all -s 4 -c %s -l %s -r %s -q %s %s %s'%(svmpath,C,nbinputs,NUMRUNS,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
+            os.system('%s -s 4 -c %s -l %s -r %s -q %s %s %s'%(svmrunall_path,C,nbinputs,NUMRUNS,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
             f = open(PATH_SAVE+'/currentsvm.txt','r')
             a=f.readline()[:-1]
             f.close()

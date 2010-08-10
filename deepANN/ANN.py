@@ -1196,6 +1196,7 @@ class SDAE(object):
                                 self.auxdepth, ',', self.auxregularization
         print >> sys.stderr, '\tauxact, auxn_out, auxwdreg = ', \
                                 self.auxact, ',', self.auxn_out, ',', self.auxwdreg
+        sys.stderr.flush()
 
 if __name__ == '__main__':
     

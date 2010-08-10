@@ -107,6 +107,8 @@ jobman will write files of the form:
         Fourth set of data:
             As second set, but with 10000 labeled training examples.
 
+        NOTE: This should be rewritten as a JSON file.
+
         
 
 
