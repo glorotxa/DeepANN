@@ -9,7 +9,7 @@ NOTE:
 
 The simple command to lauch the script properly is:
 
-    THEANO_FLAGS=mode=FAST_RUN,device=gpu0,floatX=float32 jobman cmdline DARPAscript.NLPSDAE DARPA-fast.conf
+    PYTHONPATH=$PYTHONPATH:.. THEANO_FLAGS=mode=FAST_RUN,device=gpu0,floatX=float32 jobman cmdline DARPAscript.NLPSDAE DARPA-fast.conf
 
 - gpu0 means select the first GPU device.
 - DARPA-fast.conf is the conf file where your hyperparameters are

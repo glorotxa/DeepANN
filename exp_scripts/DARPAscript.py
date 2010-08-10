@@ -171,6 +171,8 @@ def NLPSDAE(state,channel):
     WEIGHT_REGULARIZATION_TYPE = state.weight_regularization_type
     WEIGHT_REGULARIZATION_COEFF = state.weight_regularization_coeff #list
     NEPOCHS = state.nepochs #list
+    VALIDATION_RUNS_FOR_EACH_TRAININGSIZE = state.validation_runs_for_each_trainingsize #list of lists
+    VALIDATION_TRAININGSIZE = [i[0] for i in VALIDATION_RUNS_FOR_EACH_TRAININGSIZE] # list
     EPOCHSTEST = state.epochstest #list
     BATCHSIZE = state.batchsize
     PATH_SAVE = channel.remote_path if hasattr(channel,'remote_path') else channel.path
@@ -196,12 +198,8 @@ def NLPSDAE(state,channel):
     #monitor best performance for reconstruction and classification
     state.bestrec = []
     state.bestrecepoch = []
-    state.besterr100 = []
-    state.besterr1000 = []
-    state.besterr100epoch = []
-    state.besterr1000epoch = []
-    state.besterr10000 = []
-    state.besterr10000epoch = []
+    state.besterr = dict([(trainsize, []) for trainsize in VALIDATION_TRAININGSIZE])
+    state.besterrepoch = dict([(trainsize, []) for trainsize in VALIDATION_TRAININGSIZE])
     
     if MODEL_RELOAD != None:
         oldstate = expand(DD(filemerge(MODEL_RELOAD+'../current.conf')))
@@ -275,9 +273,8 @@ def NLPSDAE(state,channel):
             model.auxiliary(init=1,auxdepth=-DEPTH+i+1, auxn_out=n_aux)
         
         rec = {}
-        err100 = {}
-        err1000 = {}
-        err10000 = {}
+        err = dict([(trainsize, {}) for trainsize in VALIDATION_TRAININGSIZE])
+        
         if 0 in EPOCHSTEST[i]: 
             trainfunc,n,tes = rebuildunsup(model,i,ACT,LR[i],None,BATCHSIZE,train)
             createlibsvmfile(model,i,datatrain,datatrainsave)
