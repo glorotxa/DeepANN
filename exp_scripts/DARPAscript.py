@@ -304,7 +304,7 @@ def NLPSDAE(state,channel):
                 print >> sys.stderr, 'CURRENT %d SVM ERROR: ' % trainsize, err[trainsize][0]
             print >> sys.stderr, stats()
 
-        for epoch in range(NEPOCHS[depth]):
+        for epoch in xrange(1,NEPOCHS[depth]+1):
             time1 = time.time()
             for filenb in xrange(1,NB_FILES + 1):
                 time2=time.time()
@@ -328,9 +328,9 @@ def NLPSDAE(state,channel):
                     dum = trainfunc(j)
                 print >> sys.stderr, 'File:',filenb,time.time()-time2, '----'
                 print >> sys.stderr, stats()
-            print >> sys.stderr, '-----------------------------epoch',epoch+1,'time',time.time()-time1
+            print >> sys.stderr, '-----------------------------epoch',epoch,'time',time.time()-time1
             print >> sys.stderr, stats()
-            if epoch+1 in EPOCHSTEST[depth]:
+            if epoch in EPOCHSTEST[depth]:
                 trainfunc,n,tes = rebuildunsup(model,depth,ACT,LR[depth],None,BATCHSIZE,train)
                 createlibsvmfile(model,depth,datatrain,datatrainsave)
                 createlibsvmfile(model,depth,datatest,datatestsave)
@@ -346,18 +346,18 @@ def NLPSDAE(state,channel):
                 f.close()
                 rec.update({epoch:tes()})
                 # TODO: Dedup this code with above copy
-                print >> sys.stderr, '##########  TEST ############ EPOCH : ',epoch+1
-                print >> sys.stderr, 'CURRENT RECONSTRUCTION ERROR: ',rec[epoch+1]
+                print >> sys.stderr, '##########  TEST ############ EPOCH : ',epoch
+                print >> sys.stderr, 'CURRENT RECONSTRUCTION ERROR: ',rec[epoch]
                 for trainsize in VALIDATION_TRAININGSIZE:
-                    print >> sys.stderr, 'CURRENT %d SVM ERROR: ' % trainsize,err[trainsize][epoch+1]
+                    print >> sys.stderr, 'CURRENT %d SVM ERROR: ' % trainsize,err[trainsize][epoch]
                 print >> sys.stderr, stats()
                 f = open('depth%serr.pkl'%depth,'w')
                 cPickle.dump(rec,f,-1)
                 for trainsize in VALIDATION_TRAININGSIZE:
                     cPickle.dump(err[trainsize],f,-1)
                 f.close()
-                os.mkdir(PATH_SAVE+'/depth%spre%s'%(depth+1,epoch+1))
-                model.save(PATH_SAVE+'/depth%spre%s'%(depth+1,epoch+1))
+                os.mkdir(PATH_SAVE+'/depth%spre%s'%(depth+1,epoch))
+                model.save(PATH_SAVE+'/depth%spre%s'%(depth+1,epoch))
         if len(EPOCHSTEST[depth])!=0:
             recmin = numpy.min(rec.values())
             for k in rec.keys():
