@@ -13,6 +13,7 @@ from jobman.tools import DD,expand
 from jobman.parse import filemerge
 
 from common.stats import stats
+from common.str import percent
 
 #hardcoded path to your liblinear source:
 SVMPATH = '/u/glorotxa/work/NLP/DARPAproject/netscale_sentiment_for_ET/lib/liblinear/'
@@ -22,13 +23,29 @@ assert os.access(SVMRUNALL_PATH, os.X_OK)
 BATCH_TEST = 100
 BATCH_CREATION_LIBSVM = 500
 NB_MAX_TRAINING_EXAMPLES_SVM = 10000
+#NB_MAX_TRAINING_EXAMPLES_SVM = 1000     # FIXME: Change back to 10000 <========================================================================
+                                        # 1000 is just for fast running during development
 
 SVM_INITIALC    = 0.01
 SVM_STEPFACTOR  = 10.
 SVM_MAXSTEPS    = 20
 
+# TRAINFUNC is a handle to the model's training function. It is a global
+# because it is connected to internal state in the Model. Each time the
+# model changes, update TRAINFUNC!
+TRAINFUNC       = None
+TESTFUNC        = None
 
 def rebuildunsup(model,depth,ACT,LR,NOISE_LVL,batchsize,train):
+    """
+    Modify the global TRAINFUNC and TESTFUNC.
+    TODO: FIXME! Is it possible not to use global state? If the TRAINFUNC
+    and TESTFUNC are connected to model state, then it is unavoidable that
+    TRAINFUNC and TESTFUNC should be treated as things with side-effects.
+    """
+
+    global TRAINFUNC, TESTFUNC
+
     model.ModeAux(depth+1,update_type='special',noise_lvl=NOISE_LVL,lr=LR)
     if depth > 0:
         givens = {}
@@ -40,20 +57,18 @@ def rebuildunsup(model,depth,ACT,LR,NOISE_LVL,batchsize,train):
         else:
             #no rescaling needed if sigmoid
             givens.update({model.auxtarget : model.layers[depth-1].out})
-        trainfunc = theano.function([index],model.cost,updates = model.updates, givens = givens)
+        TRAINFUNC = theano.function([index],model.cost,updates = model.updates, givens = givens)
         testfunc = theano.function([index],model.cost, givens = givens)
         n = train.value.shape[0] / batchsize
         def tes():
             sum=0
-            # TODO: What is this magic number 100?
             for i in range(train.value.shape[0]/BATCH_TEST):
                 sum+=testfunc(i)
             return sum/float(i+1)
+        TESTFUNC = tes
     else:
-        trainfunc,n = model.trainfunctionbatch(train,None,train, batchsize=batchsize)
-        # TODO: What is this magic number 100?
-        tes = model.costfunction(train,None,train, batchsize=BATCH_TEST)
-    return trainfunc,n,tes
+        TRAINFUNC,n = model.trainfunctionbatch(train,None,train, batchsize=batchsize)
+        TESTFUNC = model.costfunction(train,None,train, batchsize=BATCH_TEST)
 
 def createlibsvmfile(model,depth,datafiles,dataout):
     print >> sys.stderr, 'Creating libsvm file %s (model=%s, depth=%d, datafiles=%s)...' % (repr(dataout), repr(model),depth,datafiles)
@@ -67,7 +82,6 @@ def createlibsvmfile(model,depth,datafiles,dataout):
     labels = numpy.asarray(cPickle.load(f),dtype = 'int64')
     f.close()
     f = open(dataout,'w')
-    # TODO: What is this magic number 10000 and 500?
     for i in range(NB_MAX_TRAINING_EXAMPLES_SVM/BATCH_CREATION_LIBSVM):
         textr = ''
         rep = func(instances[BATCH_CREATION_LIBSVM*i:BATCH_CREATION_LIBSVM*(i+1),:])[0]
@@ -83,7 +97,7 @@ def createlibsvmfile(model,depth,datafiles,dataout):
     print >> sys.stderr, "...done creating libsvm files"
     print >> sys.stderr, stats()
 
-def svm_validation_for_one_C(C, nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE):
+def svm_validation_for_one_trainsize_and_one_C(C, nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE):
     """
     Train an SVM using some C on nbinputs training examples, for numrums runs.
     Return:
@@ -101,7 +115,7 @@ def svm_validation_for_one_C(C, nbinputs,numruns,datatrainsave,datatestsave,PATH
     return testerr,testerrdev,trainerr,trainerrdev
 
 
-def svm_validation(nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE,MAXSTEPS=SVM_MAXSTEPS,STEPFACTOR=SVM_STEPFACTOR, INITIALC=SVM_INITIALC):
+def svm_validation_for_one_trainsize(nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE,MAXSTEPS=SVM_MAXSTEPS,STEPFACTOR=SVM_STEPFACTOR, INITIALC=SVM_INITIALC):
     """
     Train an SVM on nbinputs training examples, for numrums runs.
     Choose the value of C using a linesearch to minimize the testerr.
@@ -125,11 +139,11 @@ def svm_validation(nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE,MAXSTEP
     while len(C_to_allstats) < MAXSTEPS:
         if Ccurrent not in C_to_allstats:
             # Compute the validation statistics for the current C
-            (testerr,testerrdev,trainerr,trainerrdev) = svm_validation_for_one_C(Ccurrent, nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE)
+            (testerr,testerrdev,trainerr,trainerrdev) = svm_validation_for_one_trainsize_and_one_C(Ccurrent, nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE)
             C_to_allstats[Ccurrent] = (testerr,testerrdev,trainerr,trainerrdev)
         if Cnew not in C_to_allstats:
             # Compute the validation statistics for the next C
-            (testerr,testerrdev,trainerr,trainerrdev) = svm_validation_for_one_C(Cnew, nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE)
+            (testerr,testerrdev,trainerr,trainerrdev) = svm_validation_for_one_trainsize_and_one_C(Cnew, nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE)
             C_to_allstats[Cnew] = (testerr,testerrdev,trainerr,trainerrdev)
         # If Cnew has a lower test err than Ccurrent, then continue stepping in this direction
         if C_to_allstats[Cnew][0] < C_to_allstats[Ccurrent][0]:
@@ -160,6 +174,57 @@ def svm_validation(nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE,MAXSTEP
     print >> sys.stderr, stats()
 
     return [Cbest] + list(C_to_allstats[Cbest])
+
+def svm_validation(err, reconstruction_error, epoch, model, depth, ACT,LR,NOISE_LVL,BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE):
+    """
+    Perform full SVM validation.
+    """
+    global TRAINFUNC
+
+    print >> sys.stderr, "Validating (err=%s,epoch=%s,model=%s,depth=%s,ACT=%s,LR=%s,NOISE_LVL=%s,BATCHSIZE=%s,train=%s,datatrain=%s,datatrainsave=%s,datatest=%s,datatestsave=%s,VALIDATION_TRAININGSIZE=%s,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE=%s,PATH_SAVE=%s)..." % (err, epoch, model, depth, ACT,LR,NOISE_LVL,BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE)
+    print >> sys.stderr, stats()
+
+    # Call with noiselevel = None before running the SVM.
+    # No noise because we want the exact representation for each instance.
+    rebuildunsup(model,depth,ACT,LR,None,BATCHSIZE,train)
+
+    createlibsvmfile(model,depth,datatrain,datatrainsave)
+    createlibsvmfile(model,depth,datatest,datatestsave)
+
+    for trainsize in VALIDATION_TRAININGSIZE:
+        print trainsize
+        print VALIDATION_RUNS_FOR_EACH_TRAININGSIZE
+        C,testerr,testerrdev,trainerr,trainerrdev = svm_validation_for_one_trainsize(trainsize,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE[`trainsize`],datatrainsave,datatestsave,PATH_SAVE)
+        err[trainsize].update({epoch:(C,testerr,testerrdev,trainerr,trainerrdev)})
+
+
+    if epoch != 0:
+        f = open(PATH_DATA + NAME_DATATEST +'_1.pkl','r')
+        train.container.value[:] = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
+        f.close()
+
+    # Now, restore TRAINFUNC with the original NOISE_LVL
+    rebuildunsup(model,depth,ACT,LR,NOISE_LVL,BATCHSIZE,train)
+    reconstruction_error.update({epoch:TESTFUNC()})
+
+    print >> sys.stderr, '##########  TEST ############ EPOCH : ', epoch
+    print >> sys.stderr, 'CURRENT RECONSTRUCTION ERROR (is this on test or train?): ',reconstruction_error[epoch]
+    for trainsize in VALIDATION_TRAININGSIZE:
+        print >> sys.stderr, 'CURRENT %d SVM ERROR: ' % trainsize,err[trainsize][epoch]
+    print >> sys.stderr, stats()
+
+    if epoch != 0:
+        f = open('depth%serr.pkl'%i,'w')
+        cPickle.dump(rec,f,-1)
+        for trainsize in VALIDATION_TRAININGSIZE:
+            cPickle.dump(err[trainsize],f,-1)
+        f.close()
+        os.mkdir(PATH_SAVE+'/depth%spre%s'%(depth+1,epoch))
+        model.save(PATH_SAVE+'/depth%spre%s'%(depth+1,epoch))
+
+    print >> sys.stderr, "...done validating (err=%s,epoch=%s,model=%s,depth=%s,ACT=%s,LR=%s,NOISE_LVL=%s,BATCHSIZE=%s,train=%s,datatrain=%s,datatrainsave=%s,datatest=%s,datatestsave=%s,VALIDATION_TRAININGSIZE=%s,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE=%s,PATH_SAVE=%s)" % (err, epoch, model, depth, ACT,LR,NOISE_LVL,BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE)
+    print >> sys.stderr, stats()
+
 
 def NLPSDAE(state,channel):
     """This script launch a new, or stack on previous, SDAE experiment, training in a greedy layer wise fashion.
@@ -196,7 +261,6 @@ def NLPSDAE(state,channel):
     INPUTTYPE = state.inputtype
     RandomStreams(state.seed)
     numpy.random.seed(state.seed)
-
     datatrain = (PATH_DATA+NAME_DATA+'_1.pkl',PATH_DATA+NAME_LABEL+'_1.pkl')
     datatrainsave = PATH_SAVE+'/train.libsvm'
     datatest = (PATH_DATA+NAME_DATATEST+'_1.pkl',PATH_DATA+NAME_LABELTEST+'_1.pkl')
@@ -240,12 +304,12 @@ def NLPSDAE(state,channel):
             regularization=WEIGHT_REGULARIZATION_COEFF, wdreg = WEIGHT_REGULARIZATION_TYPE, spreg = ACTIVATION_REGULARIZATION_TYPE, n_inp=NINPUTS,noise=NOISE,tie=True)
 
     #RELOAD previous model
-    for i in range(depthbegin):
+    for depth in range(depthbegin):
         print >> sys.stderr, 'reload layer',i+1
         print >> sys.stderr, stats()
-        model.layers[i].W.value = cPickle.load(open(MODEL_RELOAD + 'Layer%s_W.pkl'%(i+1),'r'))
-        model.layers[i].b.value = cPickle.load(open(MODEL_RELOAD + 'Layer%s_b.pkl'%(i+1),'r'))
-        model.layers[i].mask.value = cPickle.load(open(MODEL_RELOAD + 'Layer%s_mask.pkl'%(i+1),'r'))
+        model.layers[depth].W.value = cPickle.load(open(MODEL_RELOAD + 'Layer%s_W.pkl'%(i+1),'r'))
+        model.layers[depth].b.value = cPickle.load(open(MODEL_RELOAD + 'Layer%s_b.pkl'%(i+1),'r'))
+        model.layers[depth].mask.value = cPickle.load(open(MODEL_RELOAD + 'Layer%s_mask.pkl'%(i+1),'r'))
 
     state.act = ACT
     state.depth = DEPTH
@@ -260,51 +324,38 @@ def NLPSDAE(state,channel):
     state.epochstest = EPOCHSTEST
     channel.save()
 
-    for i in xrange(depthbegin,DEPTH):
-        print >> sys.stderr, '-----------------------------BEGIN DEPTH:',i+1
+    for depth in xrange(depthbegin,DEPTH):
+        print >> sys.stderr, 'BEGIN DEPTH %s...' % (percent(depth+1, DEPTH - depthbegin))
         print >> sys.stderr, stats()
-        if i == 0:
+        if depth == 0:
             n_aux = NINPUTS
         else:
-            n_aux = model.layers[i-1].n_out
-        if i==0 and INPUTTYPE == 'tfidf':
+            n_aux = model.layers[depth-1].n_out
+        if depth==0 and INPUTTYPE == 'tfidf':
             model.depth_max = model.depth_max+1
             model.reconstruction_cost = 'quadratic'
             model.reconstruction_cost_fn = quadratic_cost
-            model.auxiliary(init=1,auxact='softplus',auxdepth=-DEPTH+i+1, auxn_out=n_aux)
+            model.auxiliary(init=1,auxact='softplus',auxdepth=-DEPTH+depth+1, auxn_out=n_aux)
         else:
             model.depth_max = model.depth_max+1
-            if i==1 and INPUTTYPE == 'tfidf':
+            if depth==1 and INPUTTYPE == 'tfidf':
                 model.reconstruction_cost = 'cross_entropy'
                 model.reconstruction_cost_fn = cross_entropy_cost
             if model.auxlayer != None:
                 del model.auxlayer.W
                 del model.auxlayer.b
-            model.auxiliary(init=1,auxdepth=-DEPTH+i+1, auxn_out=n_aux)
+            model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxn_out=n_aux)
 
-        rec = {}
+        reconstruction_error = {}
         err = dict([(trainsize, {}) for trainsize in VALIDATION_TRAININGSIZE])
 
-        if 0 in EPOCHSTEST[i]:
-            trainfunc,n,tes = rebuildunsup(model,i,ACT,LR[i],None,BATCHSIZE,train)
-            createlibsvmfile(model,i,datatrain,datatrainsave)
-            createlibsvmfile(model,i,datatest,datatestsave)
+        rebuildunsup(model,depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train)
 
-            for trainsize in VALIDATION_TRAININGSIZE:
-                C,testerr,testerrdev,trainerr,trainerrdev = svm_validation(trainsize,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE[`trainsize`],datatrainsave,datatestsave,PATH_SAVE)
-                err[trainsize].update({0:(C,testerr,testerrdev,trainerr,trainerrdev)})
+        epoch = 0
+        if epoch in EPOCHSTEST[depth]:
+            svm_validation(err, reconstruction_error, epoch, model, depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE)
 
-        trainfunc,n,tes = rebuildunsup(model,i,ACT,LR[i],NOISE_LVL[i],BATCHSIZE,train)
-        if 0 in EPOCHSTEST[i]:
-            rec.update({0:tes()})
-
-            print >> sys.stderr, '########## INITIAL TEST ############  : '
-            print >> sys.stderr, 'CURRENT RECONSTRUCTION ERROR: ',rec[0]
-            for trainsize in VALIDATION_TRAININGSIZE:
-                print >> sys.stderr, 'CURRENT %d SVM ERROR: ' % trainsize, err[trainsize][0]
-            print >> sys.stderr, stats()
-
-        for cc in range(NEPOCHS[i]):
+        for epoch in range(1, NEPOCHS[depth]+1):
             time1 = time.time()
             for p in xrange(1,NB_FILES + 1):
                 time2=time.time()
@@ -325,43 +376,19 @@ def NLPSDAE(state,channel):
                     del object
                 f.close()
                 for j in range(currentn/BATCHSIZE):
-                    dum = trainfunc(j)
+                    dum = TRAINFUNC(j)
                 print >> sys.stderr, 'File:',p,time.time()-time2, '----'
                 print >> sys.stderr, stats()
-            print >> sys.stderr, '-----------------------------epoch',cc+1,'time',time.time()-time1
+            print >> sys.stderr, '...finished training epoch #%s' % percent(epoch, NEPOCHS[depth])
             print >> sys.stderr, stats()
-            if cc+1 in EPOCHSTEST[i]:
-                trainfunc,n,tes = rebuildunsup(model,i,ACT,LR[i],None,BATCHSIZE,train)
-                createlibsvmfile(model,i,datatrain,datatrainsave)
-                createlibsvmfile(model,i,datatest,datatestsave)
 
-                # TODO: Dedup this code with above copy
-                for trainsize in VALIDATION_TRAININGSIZE:
-                    C,testerr,testerrdev,trainerr,trainerrdev = svm_validation(trainsize,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE[`trainsize`],datatrainsave,datatestsave,PATH_SAVE)
-                    err[trainsize].update({cc+1:(C,testerr,testerrdev,trainerr,trainerrdev)})
+            if epoch in EPOCHSTEST[depth]:
+                svm_validation(err, reconstruction_error, epoch, model,i,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE)
 
-                trainfunc,n,tes = rebuildunsup(model,i,ACT,LR[i],NOISE_LVL[i],BATCHSIZE,train)
-                f =open(PATH_DATA + NAME_DATATEST +'_1.pkl','r')
-                train.container.value[:] = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
-                f.close()
-                rec.update({cc+1:tes()})
-                # TODO: Dedup this code with above copy
-                print >> sys.stderr, '##########  TEST ############ EPOCH : ',cc+1
-                print >> sys.stderr, 'CURRENT RECONSTRUCTION ERROR: ',rec[cc+1]
-                for trainsize in VALIDATION_TRAININGSIZE:
-                    print >> sys.stderr, 'CURRENT %d SVM ERROR: ' % trainsize,err[trainsize][cc+1]
-                print >> sys.stderr, stats()
-                f = open('depth%serr.pkl'%i,'w')
-                cPickle.dump(rec,f,-1)
-                for trainsize in VALIDATION_TRAININGSIZE:
-                    cPickle.dump(err[trainsize],f,-1)
-                f.close()
-                os.mkdir(PATH_SAVE+'/depth%spre%s'%(i+1,cc+1))
-                model.save(PATH_SAVE+'/depth%spre%s'%(i+1,cc+1))
-        if len(EPOCHSTEST[i])!=0:
-            recmin = numpy.min(rec.values())
-            for k in rec.keys():
-                if rec[k] == recmin:
+        if len(EPOCHSTEST[depth])!=0:
+            recmin = numpy.min(reconstruction_error.values())
+            for k in reconstruction_error.keys():
+                if reconstruction_error[k] == recmin:
                     state.bestrec += [recmin]
                     state.bestrecepoch += [k]
 
@@ -380,4 +407,6 @@ def NLPSDAE(state,channel):
             for trainsize in VALIDATION_TRAININGSIZE:
                 state.besterr[trainsize] += [None]
                 state.besterrepoch[trainsize] += [None]
+        print >> sys.stderr, '...DONE DEPTH %s' % (percent(depth+1, DEPTH - depthbegin))
+        print >> sys.stderr, stats()
     return channel.COMPLETE
