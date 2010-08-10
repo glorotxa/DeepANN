@@ -7,6 +7,7 @@ import os
 import os.path
 import time
 import sys
+import math
 
 from jobman.tools import DD,expand
 from jobman.parse import filemerge
@@ -74,83 +75,83 @@ def createlibsvmfile(model,depth,datafiles,dataout):
     print >> sys.stderr, "...done creating libsvm files"
     print >> sys.stderr, stats()
 
-def dosvm(nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE):
-    # TODO: Rewrite with a proper linesearch
+def svm_validation_for_one_C(C, nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE):
+    """
+    Train an SVM using some C on nbinputs training examples, for numrums runs.
+    Return:
+        testerr,testerrdev,trainerr,trainerrdev
+    """
+    print >> sys.stderr, "\t\tTraining SVM with C=%f, nbinputs=%d, numruns=%d" % (C, nbinputs,numruns)
 
-    print >> sys.stderr, 'BEGIN SVM for %s examples'%nbinputs
-    C = 0.01
-    print >> sys.stderr, C , '-----------------------------------------------------------------'
-    print >> sys.stderr, stats()
-    os.system('%s -s 4 -c %s -l %s -r %s -q %s %s %s'%(SVMRUNALL_PATH,C,nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
-    f = open(PATH_SAVE+'/currentsvm.txt','r')
-    a=f.readline()[:-1]
-    f.close()
+    os.system('%s -s 4 -c %s -l %s -r %s -q %s %s %s > /dev/null 2> /dev/null'%(SVMRUNALL_PATH,C,nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
+    results = open(PATH_SAVE+'/currentsvm.txt','r').readline()[:-1].split(' ')
     os.remove(PATH_SAVE+'/currentsvm.txt')
-    res = a.split(' ')
-    trainerr = [float(res[1])]
-    trainerrdev = [float(res[2])]
-    testerr = [float(res[3])]
-    testerrdev = [float(res[4])]
-    Clist=[C]
+    trainerr    = float(results[1])
+    trainerrdev = float(results[2])
+    testerr     = float(results[3])
+    testerrdev  = float(results[4])
+    return testerr,testerrdev,trainerr,trainerrdev
 
-    C = 0.001
-    print >> sys.stderr, C  , '-----------------------------------------------------------------'
+
+def svm_validation(nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE,MAXSTEPS=20,STEPFACTOR=10, INITIALC=0.01):
+    """
+    Train an SVM on nbinputs training examples, for numrums runs.
+    Choose the value of C using a linesearch to minimize the testerr.
+    Return:
+        C,testerr,testerrdev,trainerr,trainerrdev
+
+    MAXSTEPS is the number of steps performed in the line search.
+    STEPFACTOR is the initial step size.
+    """
+
+    print >> sys.stderr, 'Starting SVM validation for %s examples (numrums=%d, datatrainsave=%s, datatestsave=%s, PATH_SAVE=%s, MAXSTEPS=%d, STEPFACTOR=%f, INITIALC=%f)...' % (nbinputs, numruns,datatrainsave,datatestsave, PATH_SAVE,MAXSTEPS, STEPFACTOR, INITIALC)
     print >> sys.stderr, stats()
-    os.system('%s -s 4 -c %s -l %s -r %s -q %s %s %s'%(SVMRUNALL_PATH,C,nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
-    f = open(PATH_SAVE+'/currentsvm.txt','r')
-    a=f.readline()[:-1]
-    f.close()
-    os.remove(PATH_SAVE+'/currentsvm.txt')
-    res = a.split(' ')
-    trainerr = [float(res[1])] + trainerr
-    trainerrdev = [float(res[2])] + trainerrdev
-    testerr = [float(res[3])] + testerr
-    testerrdev = [float(res[4])] + testerrdev
-    Clist=[C] + Clist
 
-    if testerr[1] < testerr[0]:
-        C = 0.1
-        while testerr[-1] < testerr[-2] and C<100000:
-            print >> sys.stderr, C , '-----------------------------------------------------------------'
-            print >> sys.stderr, stats()
-            os.system('%s -s 4 -c %s -l %s -r %s -q %s %s %s'%(SVMRUNALL_PATH,C,nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
-            f = open(PATH_SAVE+'/currentsvm.txt','r')
-            a=f.readline()[:-1]
-            f.close()
-            os.remove(PATH_SAVE+'/currentsvm.txt')
-            res = a.split(' ')
-            trainerr += [float(res[1])]
-            trainerrdev += [float(res[2])]
-            testerr += [float(res[3])]
-            testerrdev += [float(res[4])]
-            Clist+=[C]
-            C=C*10
-        if C!=100000:
-            return Clist[-2],testerr[-2],testerrdev[-2],trainerr[-2],trainerrdev[-2]
-        else:
-            return Clist[-1],testerr[-1],testerrdev[-1],trainerr[-1],trainerrdev[-1]
-    else:
-        C=0.0001
-        while testerr[0] < testerr[1] and C>0.000001:
-            print >> sys.stderr, C , '-----------------------------------------------------------------'
-            print >> sys.stderr, stats()
-            os.system('%s -s 4 -c %s -l %s -r %s -q %s %s %s'%(SVMRUNALL_PATH,C,nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
-            f = open(PATH_SAVE+'/currentsvm.txt','r')
-            a=f.readline()[:-1]
-            f.close()
-            os.remove(PATH_SAVE+'/currentsvm.txt')
-            res = a.split(' ')
-            trainerr = [float(res[1])] + trainerr
-            trainerrdev = [float(res[2])] + trainerrdev
-            testerr = [float(res[3])] + testerr
-            testerrdev = [float(res[4])] + testerrdev
-            Clist=[C] + Clist
-            C=C*0.1
-        if C != 0.000001:
-            return Clist[1],testerr[1],testerrdev[1],trainerr[1],trainerrdev[1]
-        else:
-            return Clist[0],testerr[0],testerrdev[0],trainerr[0],trainerrdev[0]
+    Ccurrent = INITIALC
+    Cstepfactor = STEPFACTOR
+    Cnew = Ccurrent * Cstepfactor
 
+    C_to_allstats = {}
+    Cbest = None
+
+    while len(C_to_allstats) < MAXSTEPS:
+        if Ccurrent not in C_to_allstats:
+            # Compute the validation statistics for the current C
+            (testerr,testerrdev,trainerr,trainerrdev) = svm_validation_for_one_C(Ccurrent, nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE)
+            C_to_allstats[Ccurrent] = (testerr,testerrdev,trainerr,trainerrdev)
+        if Cnew not in C_to_allstats:
+            # Compute the validation statistics for the next C
+            (testerr,testerrdev,trainerr,trainerrdev) = svm_validation_for_one_C(Cnew, nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE)
+            C_to_allstats[Cnew] = (testerr,testerrdev,trainerr,trainerrdev)
+        # If Cnew has a lower test err than Ccurrent, then continue stepping in this direction
+        if C_to_allstats[Cnew][0] < C_to_allstats[Ccurrent][0]:
+            print >> sys.stderr, "\ttesterr[Cnew %f] = %f < testerr[Ccurrent %f] = %f" % (Cnew, C_to_allstats[Cnew][0], Ccurrent, C_to_allstats[Ccurrent][0])
+            if Cbest is None or C_to_allstats[Cnew][0] < C_to_allstats[Cbest][0]:
+                Cbest = Cnew
+                print >> sys.stderr, "\tNEW BEST: Cbest <= %f, testerr[Cbest] = %f" % (Cbest, C_to_allstats[Cbest][0])
+            Ccurrent = Cnew
+            Cnew *= Cstepfactor
+            print >> sys.stderr, "\tPROCEED: Cstepfactor remains %f, Ccurrent is now %f, Cnew is now %f" % (Cstepfactor, Ccurrent, Cnew)
+        # Else, reverse the direction and reduce the step size by sqrt.
+        else:
+            print >> sys.stderr, "\ttesterr[Cnew %f] = %f > testerr[Ccurrent %f] = %f" % (Cnew, C_to_allstats[Cnew][0], Ccurrent, C_to_allstats[Ccurrent][0])
+            if Cbest is None or C_to_allstats[Ccurrent][0] < C_to_allstats[Cbest][0]:
+                Cbest = Ccurrent
+                print >> sys.stderr, "\tCbest <= %f, testerr[Cbest] = %f" % (Cbest, C_to_allstats[Cbest][0])
+            Cstepfactor = 1. / math.sqrt(Cstepfactor)
+            Cnew = Ccurrent * Cstepfactor
+            print >> sys.stderr, "\tREVERSE: Cstepfactor is now %f, Ccurrent remains %f, Cnew is now %f" % (Cstepfactor, Ccurrent, Cnew)
+
+    allC = C_to_allstats.keys()
+    allC.sort()
+    for C in allC:
+        print >> sys.stderr, "\ttesterr[C %f] = %f" % (C, C_to_allstats[C][0]),
+        if C == Cbest: print >> sys.stderr, " *best* (testerr = %f, testerrdev = %f, trainerr = %f, trainerrdev = %f)" % C_to_allstats[C]
+        else: print >> sys.stderr, ""
+    print >> sys.stderr, '...done with SVM validation for %s examples (numrums=%d, datatrainsave=%s, datatestsave=%s)...' % (nbinputs, numruns,datatrainsave,datatestsave)
+    print >> sys.stderr, stats()
+
+    return [Cbest] + list(C_to_allstats[Cbest])
 
 def NLPSDAE(state,channel):
     """This script launch a new, or stack on previous, SDAE experiment, training in a greedy layer wise fashion.
@@ -281,7 +282,7 @@ def NLPSDAE(state,channel):
             createlibsvmfile(model,i,datatest,datatestsave)
 
             for trainsize in VALIDATION_TRAININGSIZE:
-                C,testerr,testerrdev,trainerr,trainerrdev = dosvm(trainsize,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE[`trainsize`],datatrainsave,datatestsave,PATH_SAVE)
+                C,testerr,testerrdev,trainerr,trainerrdev = svm_validation(trainsize,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE[`trainsize`],datatrainsave,datatestsave,PATH_SAVE)
                 err[trainsize].update({0:(C,testerr,testerrdev,trainerr,trainerrdev)})
 
         trainfunc,n,tes = rebuildunsup(model,i,ACT,LR[i],NOISE_LVL[i],BATCHSIZE,train)
@@ -327,7 +328,7 @@ def NLPSDAE(state,channel):
 
                 # TODO: Dedup this code with above copy
                 for trainsize in VALIDATION_TRAININGSIZE:
-                    C,testerr,testerrdev,trainerr,trainerrdev = dosvm(trainsize,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE[`trainsize`],datatrainsave,datatestsave,PATH_SAVE)
+                    C,testerr,testerrdev,trainerr,trainerrdev = svm_validation(trainsize,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE[`trainsize`],datatrainsave,datatestsave,PATH_SAVE)
                     err[trainsize].update({cc+1:(C,testerr,testerrdev,trainerr,trainerrdev)})
 
                 trainfunc,n,tes = rebuildunsup(model,i,ACT,LR[i],NOISE_LVL[i],BATCHSIZE,train)
