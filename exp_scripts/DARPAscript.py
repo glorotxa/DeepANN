@@ -214,7 +214,7 @@ def svm_validation(err, reconstruction_error, epoch, model, depth, ACT,LR,NOISE_
     print >> sys.stderr, stats()
 
     if epoch != 0:
-        f = open('depth%serr.pkl'%i,'w')
+        f = open('depth%serr.pkl'%depth,'w')
         cPickle.dump(rec,f,-1)
         for trainsize in VALIDATION_TRAININGSIZE:
             cPickle.dump(err[trainsize],f,-1)
@@ -383,7 +383,7 @@ def NLPSDAE(state,channel):
             print >> sys.stderr, stats()
 
             if epoch in EPOCHSTEST[depth]:
-                svm_validation(err, reconstruction_error, epoch, model,i,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE)
+                svm_validation(err, reconstruction_error, epoch, model,depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE)
 
         if len(EPOCHSTEST[depth])!=0:
             recmin = numpy.min(reconstruction_error.values())
