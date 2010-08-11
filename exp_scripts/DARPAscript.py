@@ -175,7 +175,7 @@ def svm_validation_for_one_trainsize(nbinputs,numruns,datatrainsave,datatestsave
 
     return [Cbest] + list(C_to_allstats[Cbest])
 
-def svm_validation(err, reconstruction_error, epoch, model, depth, ACT,LR,NOISE_LVL,BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA):
+def svm_validation(err, reconstruction_error, epoch, model, depth, ACT,LR,NOISE_LVL,BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA, NAME_DATATEST):
     """
     Perform full SVM validation.
     """
@@ -353,7 +353,7 @@ def NLPSDAE(state,channel):
 
         epoch = 0
         if epoch in EPOCHSTEST[depth]:
-            svm_validation(err, reconstruction_error, epoch, model, depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA)
+            svm_validation(err, reconstruction_error, epoch, model, depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA, NAME_DATATEST)
 
         for epoch in xrange(1,NEPOCHS[depth]+1):
             time1 = time.time()
@@ -383,7 +383,7 @@ def NLPSDAE(state,channel):
             print >> sys.stderr, stats()
 
             if epoch in EPOCHSTEST[depth]:
-                svm_validation(err, reconstruction_error, epoch, model,depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA)
+                svm_validation(err, reconstruction_error, epoch, model,depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA, NAME_DATATEST)
 
         if len(EPOCHSTEST[depth])!=0:
             recmin = numpy.min(reconstruction_error.values())
