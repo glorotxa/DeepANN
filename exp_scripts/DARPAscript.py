@@ -215,7 +215,7 @@ def svm_validation(err, reconstruction_error, epoch, model, depth, ACT,LR,NOISE_
 
     if epoch != 0:
         f = open('depth%serr.pkl'%depth,'w')
-        cPickle.dump(rec,f,-1)
+        cPickle.dump(reconstruction_error,f,-1)
         for trainsize in VALIDATION_TRAININGSIZE:
             cPickle.dump(err[trainsize],f,-1)
         f.close()
@@ -399,14 +399,14 @@ def NLPSDAE(state,channel):
                 errmin = numpy.min(errvector)
                 for k in err[trainsize].keys():
                     if err[trainsize][k][1] == errmin:
-                        state.besterr[trainsize] += [err[trainsize][k]]
-                        state.besterrepoch[trainsize] += [k]
+                        state.besterr[`trainsize`] += [err[trainsize][k]]
+                        state.besterrepoch[`trainsize`] += [k]
         else:
             state.bestrec +=[None]
             state.bestrecepoch += [None]
             for trainsize in VALIDATION_TRAININGSIZE:
-                state.besterr[trainsize] += [None]
-                state.besterrepoch[trainsize] += [None]
+                state.besterr[`trainsize`] += [None]
+                state.besterrepoch[`trainsize`] += [None]
         print >> sys.stderr, '...DONE DEPTH %s' % (percent(depth+1, DEPTH - depthbegin))
         print >> sys.stderr, stats()
     return channel.COMPLETE

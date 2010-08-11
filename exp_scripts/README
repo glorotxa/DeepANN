@@ -3,6 +3,14 @@ Regarding exp_script/DARPAscript.py and DARPA.conf.sample...
 
 NOTE: We should renamed "test" to "validation" throughout.
 
+TODO:
+    * We need a fast fast (10 min) script to test for diffs when we update code.
+    * Why does reconstruction error and other values change from run to run?
+        The first diff from run to run is:
+            CURRENT RECONSTRUCTION ERROR (is this on test or train?):  3466.00485937
+        Why? Different randomization?
+    * Debug output should include more information, like depth, #epochs, #trainsize.
+
 NOTE:
     * You should use have this Python library in your PYTHONPATH:
         http://github.com/turian/common
