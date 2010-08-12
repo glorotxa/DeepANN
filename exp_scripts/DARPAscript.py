@@ -170,7 +170,7 @@ def svm_validation_for_one_trainsize(nbinputs,numruns,datatrainsave,datatestsave
         print >> sys.stderr, "\ttesterr[C %f] = %f" % (C, C_to_allstats[C][0]),
         if C == Cbest: print >> sys.stderr, " *best* (testerr = %f, testerrdev = %f, trainerr = %f, trainerrdev = %f)" % C_to_allstats[C]
         else: print >> sys.stderr, ""
-    print >> sys.stderr, '...done with SVM validation for %s examples (numrums=%d, datatrainsave=%s, datatestsave=%s)...' % (nbinputs, numruns,datatrainsave,datatestsave)
+    print >> sys.stderr, '...done with SVM validation for %s examples (numrums=%d, datatrainsave=%s, datatestsave=%s)' % (nbinputs, numruns,datatrainsave,datatestsave)
     print >> sys.stderr, stats()
 
     return [Cbest] + list(C_to_allstats[Cbest])
@@ -358,7 +358,7 @@ def NLPSDAE(state,channel):
         for epoch in xrange(1,NEPOCHS[depth]+1):
             time1 = time.time()
             for filenb in xrange(1,NB_FILES + 1):
-                time2=time.time()
+#                initial_file_time = time.time()
                 f =open(PATH_DATA + NAME_DATA +'_%s.pkl'%filenb,'r')
                 object = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
                 # The last training file is not of the same shape as the other training files.
@@ -377,8 +377,10 @@ def NLPSDAE(state,channel):
                 f.close()
                 for j in range(currentn/BATCHSIZE):
                     dum = TRAINFUNC(j)
-                print >> sys.stderr, 'File:',filenb,time.time()-time2, '----'
-                print >> sys.stderr, stats()
+#                current_file_time = time.time()
+#                print >> sys.stderr, 'File:',filenb,time.time()-time2, '----'
+                print >> sys.stderr, "\t\tFinished training over file %s" % percent(filenb, NB_FILES)
+                print >> sys.stderr, "\t\t", stats()
             print >> sys.stderr, '...finished training epoch #%s' % percent(epoch, NEPOCHS[depth])
             print >> sys.stderr, stats()
 
