@@ -201,15 +201,16 @@ class trainNLPSDAE:
         self.createlibsvmfile(depth,self.datatest,self.datatestsave)
     
         for trainsize in self.validation_trainingsize:
-            print trainsize
-            print self.state.validation_runs_for_each_trainingsize 
+#            print trainsize
+#            print self.state.validation_runs_for_each_trainingsize 
             C,testerr,testerrdev,trainerr,trainerrdev = self.svm_validation_for_one_trainsize(trainsize,self.state.validation_runs_for_each_trainingsize[`trainsize`])
             err[trainsize].update({epoch:(C,testerr,testerrdev,trainerr,trainerrdev)})
     
     
         if epoch != 0:
             f = open(self.state.path_data + self.state.name_testdata +'_1.pkl','r')
-            train.container.value[:] = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
+            # QUESTION: What are we doing here? Why can't we load this into a simple local variable?
+            self.traindata.container.value[:] = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
             f.close()
     
         # Now, restore TRAINFUNC with the original self.state.noise_lvl
@@ -283,10 +284,12 @@ class trainNLPSDAE:
                     # In which case, we pad the matrix but keep track of how many n (instances) there actually are.
                     # TODO: Also want to pad trainl
                     if object.shape == self.normalshape:
+                        # QUESTION: What are we doing here? Why can't we load this into a simple local variable?
                         self.traindata.container.value[:] = object
                         currentn = self.normalshape[0]
                         del object
                     else:
+                        # QUESTION: What are we doing here? Why can't we load this into a simple local variable?
                         self.traindata.container.value[:] = numpy.concatenate([object,\
                             numpy.zeros((self.normalshape[0]-object.shape[0],self.normalshape[1]),dtype=theano.config.floatX)])
                         currentn = object.shape[0]
@@ -308,8 +311,8 @@ class trainNLPSDAE:
                 recmin = numpy.min(reconstruction_error.values())
                 for k in reconstruction_error.keys():
                     if reconstruction_error[k] == recmin:
-                        state.bestrec += [recmin]
-                        state.bestrecepoch += [k]
+                        self.state.bestrec += [recmin]
+                        self.state.bestrecepoch += [k]
     
                 for trainsize in self.validation_trainingsize:
                     errvector = err[trainsize].values()
@@ -318,14 +321,14 @@ class trainNLPSDAE:
                     errmin = numpy.min(errvector)
                     for k in err[trainsize].keys():
                         if err[trainsize][k][1] == errmin:
-                            state.besterr[`trainsize`] += [err[trainsize][k]]
-                            state.besterrepoch[`trainsize`] += [k]
+                            self.state.besterr[`trainsize`] += [err[trainsize][k]]
+                            self.state.besterrepoch[`trainsize`] += [k]
             else:
-                state.bestrec +=[None]
-                state.bestrecepoch += [None]
+                self.state.bestrec +=[None]
+                self.state.bestrecepoch += [None]
                 for trainsize in self.validation_trainingsize:
-                    state.besterr[`trainsize`] += [None]
-                    state.besterrepoch[`trainsize`] += [None]
+                    self.state.besterr[`trainsize`] += [None]
+                    self.state.besterrepoch[`trainsize`] += [None]
             print >> sys.stderr, '...DONE DEPTH %s' % (percent(depth+1, self.state.depth - self.depthbegin))
             print >> sys.stderr, stats()
         return channel.COMPLETE
@@ -384,10 +387,10 @@ class trainNLPSDAE:
         self.depthbegin = 0
     
         #monitor best performance for reconstruction and classification
-        state.bestrec = []
-        state.bestrecepoch = []
-        state.besterr = dict([(`trainsize`, []) for trainsize in self.validation_trainingsize])
-        state.besterrepoch = dict([(`trainsize`, []) for trainsize in self.validation_trainingsize])
+        self.state.bestrec = []
+        self.state.bestrecepoch = []
+        self.state.besterr = dict([(`trainsize`, []) for trainsize in self.validation_trainingsize])
+        self.state.besterrepoch = dict([(`trainsize`, []) for trainsize in self.validation_trainingsize])
     
         if MODEL_RELOAD != None:
             assert 0        # I haven't updgrade the following code for the new, class-based DARPAscript.py
@@ -404,8 +407,8 @@ class trainNLPSDAE:
             self.state.lr = oldstate.lr + self.state.lr
             self.state.noise_lvl = oldstate.noise_lvl + self.state.noise_lvl
             self.state.epochstest  = oldstate.epochstest + self.state.epochstest 
-            state.bestrec = oldstate.bestrec
-            state.bestrecepoch = oldstate.bestrec
+            self.state.bestrec = oldstate.bestrec
+            self.state.bestrecepoch = oldstate.bestrec
             del oldstate
 
         if 'rectifier' in self.state.act :
@@ -444,8 +447,11 @@ class trainNLPSDAE:
         state.lr = self.state.lr
         state.noise_lvl = self.state.noise_lvl
         state.epochstest = self.state.epochstest 
+        state.besterr = self.state.besterr
+        state.besterrepoch = self.state.besterrepoch
+        state.bestrec = self.state.bestrec
+        state.bestrecepoch = self.state.bestrecepoch
         channel.save()
-    
 
 
 def NLPSDAE(state,channel):
