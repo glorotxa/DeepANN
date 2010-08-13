@@ -190,7 +190,7 @@ class trainNLPSDAE:
         """
         Perform full SVM validation.
         """
-        print >> sys.stderr, "Validating (err=%s,epoch=%s,depth=%s,self.state.act =%s,self.state.lr=%s,self.state.noise_lvl=%s,self.state.batchsize=%s,self.state.validation_runs_for_each_trainingsize =%s)..." % (err, epoch, depth, self.state.act ,self.state.lr,self.state.noise_lvl,self.state.batchsize, self.state.validation_runs_for_each_trainingsize)
+        print >> sys.stderr, "Validating (err=%s,epoch=%s,depth=%s)..." % (err, epoch, depth)
         print >> sys.stderr, stats()
     
         # Call with noiselevel = None before running the SVM.
@@ -231,7 +231,7 @@ class trainNLPSDAE:
             os.mkdir(self.path_save+'/depth%spre%s'%(depth+1,epoch))
             self.model.save(self.path_save+'/depth%spre%s'%(depth+1,epoch))
     
-        print >> sys.stderr, "...done validating (err=%s,epoch=%s,depth=%s,self.state.act =%s,self.state.lr=%s,self.state.noise_lvl=%s,self.state.batchsize=%s,self.state.validation_runs_for_each_trainingsize =%s)" % (err, epoch, depth, self.state.act ,self.state.lr,self.state.noise_lvl,self.state.batchsize, self.state.validation_runs_for_each_trainingsize)
+        print >> sys.stderr, "...done validating (err=%s,epoch=%s,depth=%s)" % (err, epoch, depth)
         print >> sys.stderr, stats()
    
     def train(self):
@@ -239,7 +239,7 @@ class trainNLPSDAE:
         Actually train the model.
         """
         for depth in xrange(self.depthbegin,self.state.depth):
-            print >> sys.stderr, 'BEGIN self.state.depth %s...' % (percent(depth+1, self.state.depth - self.depthbegin))
+            print >> sys.stderr, 'BEGIN DEPTH %s...' % (percent(depth+1, self.state.depth - self.depthbegin))
             print >> sys.stderr, stats()
             if depth == 0:
                 n_aux = self.state.ninputs          
@@ -326,7 +326,7 @@ class trainNLPSDAE:
                 for trainsize in self.validation_trainingsize:
                     state.besterr[`trainsize`] += [None]
                     state.besterrepoch[`trainsize`] += [None]
-            print >> sys.stderr, '...DONE self.state.depth %s' % (percent(depth+1, self.state.depth - self.depthbegin))
+            print >> sys.stderr, '...DONE DEPTH %s' % (percent(depth+1, self.state.depth - self.depthbegin))
             print >> sys.stderr, stats()
         return channel.COMPLETE
     

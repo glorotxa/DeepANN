@@ -7,6 +7,8 @@ TODO:
     * We need a fast fast (10 min) script to test for diffs when we update code.
     * Debug output should include more information, like depth, #epochs, #trainsize.
 
+    * Rename state.depth to state.maxdepth or something, throughout. (Except sometimes we add it?)
+
 NOTE:
     * You should use have this Python library in your PYTHONPATH:
         http://github.com/turian/common
