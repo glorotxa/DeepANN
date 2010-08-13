@@ -25,6 +25,8 @@ BATCH_CREATION_LIBSVM = 500
 NB_MAX_TRAINING_EXAMPLES_SVM = 10000
 #NB_MAX_TRAINING_EXAMPLES_SVM = 1000     # FIXME: Change back to 10000 <========================================================================
                                         # 1000 is just for fast running during development
+#NB_MAX_TRAINING_EXAMPLES_SVM = 100     # FIXME: Change back to 10000 <========================================================================
+#                                        # 100 is just for superfast running during development
 
 SVM_INITIALC    = 0.01
 SVM_STEPFACTOR  = 10.
