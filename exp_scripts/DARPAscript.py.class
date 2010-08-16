@@ -1,0 +1,463 @@
+try:
+    from ANN import *
+except ImportError:
+    from deepANN.ANN import *
+import cPickle
+import os
+import os.path
+import time
+import sys
+import math
+
+from jobman.tools import DD,expand
+from jobman.parse import filemerge
+
+from common.stats import stats
+from common.str import percent
+
+class trainNLPSDAE:
+    #hardcoded path to your liblinear source:
+    SVMPATH = '/u/glorotxa/work/NLP/DARPAproject/netscale_sentiment_for_ET/lib/liblinear/'
+    SVMRUNALL_PATH = os.path.join(SVMPATH, "run_all")
+    assert os.access(SVMRUNALL_PATH, os.X_OK)
+    
+    BATCH_TEST = 100
+    BATCH_CREATION_LIBSVM = 500
+    #NB_MAX_TRAINING_EXAMPLES_SVM = 10000
+    NB_MAX_TRAINING_EXAMPLES_SVM = 1000     # FIXME: Change back to 10000 <========================================================================
+                                            # 1000 is just for fast running during development
+    #NB_MAX_TRAINING_EXAMPLES_SVM = 100     # FIXME: Change back to 10000 <========================================================================
+    #                                        # 100 is just for superfast running during development
+    
+    SVM_INITIALC    = 0.01
+    SVM_STEPFACTOR  = 10.
+    SVM_MAXSTEPS    = 20
+    
+    # TRAINFUNC is a handle to the model's training function. It is a global
+    # because it is connected to internal state in the Model. Each time the
+    # model changes, update TRAINFUNC!
+    TRAINFUNC       = None
+    TESTFUNC        = None
+    
+    def rebuildunsup(self, depth, this_act, this_lr, this_noise_lvl):
+        """
+        Modify the global TRAINFUNC and TESTFUNC.
+        TODO: FIXME! Is it possible not to use global state? If the TRAINFUNC
+        and TESTFUNC are connected to model state, then it is unavoidable that
+        TRAINFUNC and TESTFUNC should be treated as things with side-effects.
+
+        Question: What is "self.traindata" ? I think its test data :|
+        """
+        self.model.ModeAux(depth+1,update_type='special',noise_lvl=this_noise_lvl,lr=this_lr)
+        if depth > 0:
+            givens = {}
+            index = T.lscalar()
+            givens.update({self.model.inp : self.traindata[index*self.state.batchsize:(index+1)*self.state.batchsize]})
+            if this_act[depth-1] == 'tanh':
+                #rescaling between 0 and 1 of the target
+                givens.update({self.model.auxtarget : (self.model.layers[depth-1].out+1.)/2.})
+            else:
+                #no rescaling needed if sigmoid
+                givens.update({self.model.auxtarget : self.model.layers[depth-1].out})
+            # Question: Why no "batchsize" in the function below?
+            self.TRAINFUNC = theano.function([index],self.model.cost,updates = self.model.updates, givens = givens)
+            testfunc = theano.function([index],self.model.cost, givens = givens)
+            n = self.traindata.value.shape[0] / self.state.batchsize
+            def tes():
+                sum=0
+                for i in range(self.traindata.value.shape[0]/self.BATCH_TEST):
+                    sum+=testfunc(i)
+                return sum/float(i+1)
+            self.TESTFUNC = tes
+        else:
+            self.TRAINFUNC,n = self.model.trainfunctionbatch(self.traindata,None,self.traindata, batchsize=self.state.batchsize)
+            self.TESTFUNC = self.model.costfunction(self.traindata,None,self.traindata, batchsize=self.BATCH_TEST)
+    
+    def createlibsvmfile(self, depth,datafiles,dataout):
+        print >> sys.stderr, 'Creating libsvm file %s (self.model=%s, depth=%d, datafiles=%s)...' % (repr(dataout), repr(self.model),depth,datafiles)
+        print >> sys.stderr, stats()
+        outputs = [self.model.layers[depth].out]
+        func = theano.function([self.model.inp],outputs)
+        f = open(datafiles[0],'r')
+        instances = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
+        f.close()
+        f = open(datafiles[1],'r')
+        labels = numpy.asarray(cPickle.load(f),dtype = 'int64')
+        f.close()
+        f = open(dataout,'w')
+        for i in range(self.NB_MAX_TRAINING_EXAMPLES_SVM/self.BATCH_CREATION_LIBSVM):
+            textr = ''
+            rep = func(instances[self.BATCH_CREATION_LIBSVM*i:self.BATCH_CREATION_LIBSVM*(i+1),:])[0]
+            for l in range(rep.shape[0]):
+                textr += '%s '%labels[self.BATCH_CREATION_LIBSVM*i+l]
+                idx = rep[l,:].nonzero()[0]
+                for j,v in zip(idx,rep[l,idx]):
+                    textr += '%s:%s '%(j,v)
+                textr += '\n'
+            f.write(textr)
+        del instances,labels
+        f.close()
+        print >> sys.stderr, "...done creating libsvm files"
+        print >> sys.stderr, stats()
+    
+    def svm_validation_for_one_trainsize_and_one_C(self, C, nbinputs,numruns):
+        """
+        Train an SVM using some C on nbinputs training examples, for numrums runs.
+        Return:
+            testerr,testerrdev,trainerr,trainerrdev
+
+        TODO: Move this out of the class, since it does not really need to use any self variables.
+        """
+        print >> sys.stderr, "\t\tTraining SVM with C=%f, nbinputs=%d, numruns=%d" % (C, nbinputs,numruns)
+    
+        os.system('%s -s 4 -c %s -l %s -r %s -q %s %s %s > /dev/null 2> /dev/null'%(self.SVMRUNALL_PATH,C,nbinputs,numruns,self.datatrainsave,self.datatestsave,self.path_save+'/currentsvm.txt'))
+        results = open(self.path_save+'/currentsvm.txt','r').readline()[:-1].split(' ')
+        os.remove(self.path_save+'/currentsvm.txt')
+        trainerr    = float(results[1])
+        trainerrdev = float(results[2])
+        testerr     = float(results[3])
+        testerrdev  = float(results[4])
+        return testerr,testerrdev,trainerr,trainerrdev
+    
+    
+    def svm_validation_for_one_trainsize(self, nbinputs,numruns):
+        """
+        Train an SVM on nbinputs training examples, for numrums runs.
+        Choose the value of C using a linesearch to minimize the testerr.
+        Return:
+            C,testerr,testerrdev,trainerr,trainerrdev
+    
+        MAXSTEPS is the number of steps performed in the line search.
+        STEPFACTOR is the initial step size.
+
+        TODO: Move this out of the class, since it does not really need to use any self variables.
+        """
+
+        MAXSTEPS=self.SVM_MAXSTEPS
+        STEPFACTOR=self.SVM_STEPFACTOR
+        INITIALC=self.SVM_INITIALC
+    
+        print >> sys.stderr, 'Starting SVM validation for %s examples (numrums=%d, MAXSTEPS=%d, STEPFACTOR=%f, INITIALC=%f)...' % (nbinputs, numruns, MAXSTEPS, STEPFACTOR, INITIALC)
+        print >> sys.stderr, stats()
+    
+        Ccurrent = INITIALC
+        Cstepfactor = STEPFACTOR
+        Cnew = Ccurrent * Cstepfactor
+    
+        C_to_allstats = {}
+        Cbest = None
+    
+        while len(C_to_allstats) < MAXSTEPS:
+            if Ccurrent not in C_to_allstats:
+                # Compute the validation statistics for the current C
+                (testerr,testerrdev,trainerr,trainerrdev) = self.svm_validation_for_one_trainsize_and_one_C(Ccurrent, nbinputs,numruns)
+                C_to_allstats[Ccurrent] = (testerr,testerrdev,trainerr,trainerrdev)
+            if Cnew not in C_to_allstats:
+                # Compute the validation statistics for the next C
+                (testerr,testerrdev,trainerr,trainerrdev) = self.svm_validation_for_one_trainsize_and_one_C(Cnew, nbinputs,numruns)
+                C_to_allstats[Cnew] = (testerr,testerrdev,trainerr,trainerrdev)
+            # If Cnew has a lower test err than Ccurrent, then continue stepping in this direction
+            if C_to_allstats[Cnew][0] < C_to_allstats[Ccurrent][0]:
+                print >> sys.stderr, "\ttesterr[Cnew %f] = %f < testerr[Ccurrent %f] = %f" % (Cnew, C_to_allstats[Cnew][0], Ccurrent, C_to_allstats[Ccurrent][0])
+                if Cbest is None or C_to_allstats[Cnew][0] < C_to_allstats[Cbest][0]:
+                    Cbest = Cnew
+                    print >> sys.stderr, "\tNEW BEST: Cbest <= %f, testerr[Cbest] = %f" % (Cbest, C_to_allstats[Cbest][0])
+                Ccurrent = Cnew
+                Cnew *= Cstepfactor
+                print >> sys.stderr, "\tPROCEED: Cstepfactor remains %f, Ccurrent is now %f, Cnew is now %f" % (Cstepfactor, Ccurrent, Cnew)
+            # Else, reverse the direction and reduce the step size by sqrt.
+            else:
+                print >> sys.stderr, "\ttesterr[Cnew %f] = %f > testerr[Ccurrent %f] = %f" % (Cnew, C_to_allstats[Cnew][0], Ccurrent, C_to_allstats[Ccurrent][0])
+                if Cbest is None or C_to_allstats[Ccurrent][0] < C_to_allstats[Cbest][0]:
+                    Cbest = Ccurrent
+                    print >> sys.stderr, "\tCbest <= %f, testerr[Cbest] = %f" % (Cbest, C_to_allstats[Cbest][0])
+                Cstepfactor = 1. / math.sqrt(Cstepfactor)
+                Cnew = Ccurrent * Cstepfactor
+                print >> sys.stderr, "\tREVERSE: Cstepfactor is now %f, Ccurrent remains %f, Cnew is now %f" % (Cstepfactor, Ccurrent, Cnew)
+    
+        allC = C_to_allstats.keys()
+        allC.sort()
+        for C in allC:
+            print >> sys.stderr, "\ttesterr[C %f] = %f" % (C, C_to_allstats[C][0]),
+            if C == Cbest: print >> sys.stderr, " *best* (testerr = %f, testerrdev = %f, trainerr = %f, trainerrdev = %f)" % C_to_allstats[C]
+            else: print >> sys.stderr, ""
+        print >> sys.stderr, '...done with SVM validation for %s examples (numrums=%d)' % (nbinputs, numruns)
+        print >> sys.stderr, stats()
+    
+        return [Cbest] + list(C_to_allstats[Cbest])
+    
+    def svm_validation(self, err, reconstruction_error, epoch, depth):
+        """
+        Perform full SVM validation.
+        """
+        print >> sys.stderr, "Validating (err=%s,epoch=%s,depth=%s)..." % (err, epoch, depth)
+        print >> sys.stderr, stats()
+    
+        # Call with noiselevel = None before running the SVM.
+        # No noise because we want the exact representation for each instance.
+        self.rebuildunsup(depth,self.state.act[depth],self.state.lr[depth], this_noise_lvl=None)
+    
+        self.createlibsvmfile(depth,self.datatrain,self.datatrainsave)
+        self.createlibsvmfile(depth,self.datatest,self.datatestsave)
+    
+        for trainsize in self.validation_trainingsize:
+#            print trainsize
+#            print self.state.validation_runs_for_each_trainingsize 
+            C,testerr,testerrdev,trainerr,trainerrdev = self.svm_validation_for_one_trainsize(trainsize,self.state.validation_runs_for_each_trainingsize[`trainsize`])
+            err[trainsize].update({epoch:(C,testerr,testerrdev,trainerr,trainerrdev)})
+    
+    
+        if epoch != 0:
+            f = open(self.state.path_data + self.state.name_testdata +'_1.pkl','r')
+            # QUESTION: What are we doing here? Why can't we load this into a simple local variable?
+            self.traindata.container.value[:] = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
+            f.close()
+    
+        # Now, restore TRAINFUNC with the original self.state.noise_lvl
+        self.rebuildunsup(depth,self.state.act[depth],self.state.lr[depth], this_noise_lvl=self.state.noise_lvl[depth])
+        reconstruction_error.update({epoch:self.TESTFUNC()})
+    
+        print >> sys.stderr, '##########  TEST ############ EPOCH : ', epoch
+        print >> sys.stderr, 'CURRENT RECONSTRUCTION ERROR (is this on test or train?): ',reconstruction_error[epoch]
+        for trainsize in self.validation_trainingsize:
+            print >> sys.stderr, 'CURRENT %d SVM ERROR: ' % trainsize,err[trainsize][epoch]
+        print >> sys.stderr, stats()
+    
+        if epoch != 0:
+            f = open('depth%serr.pkl'%depth,'w')
+            cPickle.dump(reconstruction_error,f,-1)
+            for trainsize in self.validation_trainingsize:
+                cPickle.dump(err[trainsize],f,-1)
+            f.close()
+            os.mkdir(self.path_save+'/depth%spre%s'%(depth+1,epoch))
+            self.model.save(self.path_save+'/depth%spre%s'%(depth+1,epoch))
+    
+        print >> sys.stderr, "...done validating (err=%s,epoch=%s,depth=%s)" % (err, epoch, depth)
+        print >> sys.stderr, stats()
+   
+    def train(self):
+        """
+        Actually train the model.
+        """
+        for depth in xrange(self.depthbegin,self.state.depth):
+            print >> sys.stderr, 'BEGIN DEPTH %s...' % (percent(depth+1, self.state.depth - self.depthbegin))
+            print >> sys.stderr, stats()
+            if depth == 0:
+                n_aux = self.state.ninputs          
+            else:
+                n_aux = self.model.layers[depth-1].n_out
+            if depth==0 and self.state.inputtype == 'tfidf':
+                self.model.depth_max = self.model.depth_max+1
+                self.model.reconstruction_cost = 'quadratic'
+                self.model.reconstruction_cost_fn = quadratic_cost
+                self.model.auxiliary(init=1,auxact='softplus',auxdepth=-self.state.depth+depth+1, auxn_out=n_aux)
+            else:
+                self.model.depth_max = self.model.depth_max+1
+                if depth==1 and self.state.inputtype == 'tfidf':
+                    self.model.reconstruction_cost = 'cross_entropy'
+                    self.model.reconstruction_cost_fn = cross_entropy_cost
+                if self.model.auxlayer != None:
+                    del self.model.auxlayer.W
+                    del self.model.auxlayer.b
+                self.model.auxiliary(init=1,auxdepth=-self.state.depth+depth+1, auxn_out=n_aux)
+
+
+            # TODO: Make err and reconstruction error member variables of the class
+    
+            reconstruction_error = {}
+            err = dict([(trainsize, {}) for trainsize in self.validation_trainingsize])
+    
+            self.rebuildunsup(depth,self.state.act[depth],self.state.lr[depth],this_noise_lvl=self.state.noise_lvl[depth])
+    
+            epoch = 0
+            if epoch in self.state.epochstest [depth]:
+                self.svm_validation(err, reconstruction_error, epoch, depth)
+    
+            for epoch in xrange(1,self.state.nepochs [depth]+1):
+                time1 = time.time()
+                for filenb in xrange(1,self.state.nb_files + 1):
+    #                initial_file_time = time.time()
+                    f =open(self.state.path_data + self.state.name_traindata +'_%s.pkl'%filenb,'r')
+                    object = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
+                    # The last training file is not of the same shape as the other training files.
+                    # So, to avoid a GPU memory error, we want to make sure it is the same size.
+                    # In which case, we pad the matrix but keep track of how many n (instances) there actually are.
+                    # TODO: Also want to pad trainl
+                    if object.shape == self.normalshape:
+                        # QUESTION: What are we doing here? Why can't we load this into a simple local variable?
+                        self.traindata.container.value[:] = object
+                        currentn = self.normalshape[0]
+                        del object
+                    else:
+                        # QUESTION: What are we doing here? Why can't we load this into a simple local variable?
+                        self.traindata.container.value[:] = numpy.concatenate([object,\
+                            numpy.zeros((self.normalshape[0]-object.shape[0],self.normalshape[1]),dtype=theano.config.floatX)])
+                        currentn = object.shape[0]
+                        del object
+                    f.close()
+                    for j in range(currentn/self.state.batchsize):
+                        dum = self.TRAINFUNC(j)
+    #                current_file_time = time.time()
+    #                print >> sys.stderr, 'File:',filenb,time.time()-time2, '----'
+                    print >> sys.stderr, "\t\tFinished training over file %s" % percent(filenb, self.state.nb_files)
+                    print >> sys.stderr, "\t\t", stats()
+                print >> sys.stderr, '...finished training epoch #%s' % percent(epoch, self.state.nepochs [depth])
+                print >> sys.stderr, stats()
+    
+                if epoch in self.state.epochstest [depth]:
+                    self.svm_validation(err, reconstruction_error, epoch, depth)
+    
+            if len(self.state.epochstest [depth])!=0:
+                recmin = numpy.min(reconstruction_error.values())
+                for k in reconstruction_error.keys():
+                    if reconstruction_error[k] == recmin:
+                        self.state.bestrec += [recmin]
+                        self.state.bestrecepoch += [k]
+    
+                for trainsize in self.validation_trainingsize:
+                    errvector = err[trainsize].values()
+                    for k in range(len(errvector)):
+                        errvector[k] = errvector[k][1]
+                    errmin = numpy.min(errvector)
+                    for k in err[trainsize].keys():
+                        if err[trainsize][k][1] == errmin:
+                            self.state.besterr[`trainsize`] += [err[trainsize][k]]
+                            self.state.besterrepoch[`trainsize`] += [k]
+            else:
+                self.state.bestrec +=[None]
+                self.state.bestrecepoch += [None]
+                for trainsize in self.validation_trainingsize:
+                    self.state.besterr[`trainsize`] += [None]
+                    self.state.besterrepoch[`trainsize`] += [None]
+            print >> sys.stderr, '...DONE DEPTH %s' % (percent(depth+1, self.state.depth - self.depthbegin))
+            print >> sys.stderr, stats()
+        return channel.COMPLETE
+    
+    def __init__(self,state,channel):
+        """
+        Initialize the model.
+        """
+
+        # QUESTIONS:
+        #   * Why do we have to copy out all the state variables, instead of just reading them from "state" when we want them?
+        #   * Instead of exhaustively listing and copying all state variables, why can't we just iterate over them and copy them all?
+        # -jpt
+
+        # QUESTION: Must we really copy? Or can we just use the state?
+        import copy
+        self.state = copy.deepcopy(state)
+
+#        # Hyper-parameters
+#        self.state.lr = state.lr#list
+#        self.state.act  = state.act #list
+#        self.state.depth = state.depth
+#        self.state.n_hid  = state.n_hid #list
+#        self.state.noise  = state.noise #list
+#        self.state.noise_lvl = state.noise_lvl#list
+#        self.state.activation_regularization_type = state.activation_regularization_type
+#        self.state.activation_regularization_coeff  = state.activation_regularization_coeff #list
+#        self.state.weight_regularization_type = state.weight_regularization_type
+#        self.state.weight_regularization_coeff  = state.weight_regularization_coeff #list
+#        self.state.nepochs  = state.nepochs #list
+#        self.state.validation_runs_for_each_trainingsize  = state.validation_runs_for_each_trainingsize #dict from trainsize string to number of validation runs at this training size
+#        self.state.epochstest  = state.epochstest #list
+#        self.state.batchsize = state.batchsize
+#        self.state.nb_files = state.nb_files
+#        self.state.path_data = state.path_data
+#        self.state.name_traindata = state.name_traindata
+#        self.state.name_trainlabel = state.name_trainlabel
+#        self.state.name_testdata = state.name_testdata
+#        self.state.name_testlabel = state.name_testlabel
+#        self.state.ninputs           = state.ninputs          # Number of input dimensions
+#        self.state.inputtype = state.inputtype
+
+        self.validation_trainingsize = [int(trainsize) for trainsize in self.state.validation_runs_for_each_trainingsize ] # list
+        self.validation_trainingsize.sort()
+        # TODO: Rename path_save to something easier to understand
+        self.path_save = channel.remote_path if hasattr(channel,'remote_path') else channel.path
+        MODEL_RELOAD = state.model_reload if hasattr(state,'model_reload') else None
+
+        RandomStreams(self.state.seed)
+        numpy.random.seed(self.state.seed)
+        self.datatrain = (self.state.path_data+self.state.name_traindata+'_1.pkl',self.state.path_data+self.state.name_trainlabel+'_1.pkl')
+        self.datatrainsave = self.path_save+'/train.libsvm'
+        self.datatest = (self.state.path_data+self.state.name_testdata+'_1.pkl',self.state.path_data+self.state.name_testlabel+'_1.pkl')
+        self.datatestsave = self.path_save+'/test.libsvm'
+    
+        self.depthbegin = 0
+    
+        #monitor best performance for reconstruction and classification
+        self.state.bestrec = []
+        self.state.bestrecepoch = []
+        self.state.besterr = dict([(`trainsize`, []) for trainsize in self.validation_trainingsize])
+        self.state.besterrepoch = dict([(`trainsize`, []) for trainsize in self.validation_trainingsize])
+    
+        if MODEL_RELOAD != None:
+            assert 0        # I haven't updgrade the following code for the new, class-based DARPAscript.py
+            # Question: We are we "adding" all these variables, instead of overwriting?
+            oldstate = expand(DD(filemerge(MODEL_RELOAD+'../current.conf')))
+            self.state.depth = oldstate.depth + self.state.depth
+            self.depthbegin = oldstate.depth
+            self.state.act  = oldstate.act + self.state.act 
+            self.state.n_hid  = oldstate.n_hid + self.state.n_hid 
+            self.state.noise  = oldstate.noise + self.state.noise 
+            L1 = oldstate.l1 + L1
+            L2 = oldstate.l2[:-1] + L2
+            self.state.nepochs  = oldstate.nepochs + self.state.nepochs 
+            self.state.lr = oldstate.lr + self.state.lr
+            self.state.noise_lvl = oldstate.noise_lvl + self.state.noise_lvl
+            self.state.epochstest  = oldstate.epochstest + self.state.epochstest 
+            self.state.bestrec = oldstate.bestrec
+            self.state.bestrecepoch = oldstate.bestrec
+            del oldstate
+
+        if 'rectifier' in self.state.act :
+            assert self.state.act .index('rectifier')== self.state.depth -1
+            # Methods to stack rectifier are still in evaluation (5 different techniques)
+            # The best will be implemented in the script soon :).
+        f =open(self.state.path_data + self.state.name_testdata + '_1.pkl','r')
+        # BUG??? Why do we open testdata and call it traindata?
+        # Question: What is traindata?  Why do we have this and datatrain? What is traindata used for? Isn't this the same as datatest[0] ?
+        self.traindata = theano.shared(numpy.asarray(cPickle.load(f),dtype=theano.config.floatX))
+        f.close()
+        self.normalshape = self.traindata.value.shape
+    
+        self.model=SDAE(numpy.random,RandomStreams(),self.state.depth,True,act=self.state.act ,n_hid=self.state.n_hid ,n_out=5,sparsity=self.state.activation_regularization_coeff ,\
+                regularization=self.state.weight_regularization_coeff , wdreg = self.state.weight_regularization_type, spreg = self.state.activation_regularization_type, n_inp=self.state.ninputs          ,noise=self.state.noise ,tie=True)
+
+        #RELOAD previous model
+        for depth in range(self.depthbegin):
+            print >> sys.stderr, 'reload layer',i+1
+            print >> sys.stderr, stats()
+            self.model.layers[depth].W.value = cPickle.load(open(MODEL_RELOAD + 'Layer%s_W.pkl'%(i+1),'r'))
+            self.model.layers[depth].b.value = cPickle.load(open(MODEL_RELOAD + 'Layer%s_b.pkl'%(i+1),'r'))
+            self.model.layers[depth].mask.value = cPickle.load(open(MODEL_RELOAD + 'Layer%s_mask.pkl'%(i+1),'r'))
+
+        # Question: Should self.depthbegin be self.state.depthbegin ?
+        state.depthbegin = self.depthbegin
+
+        # Question: Do we want to modify the global state variable here, or self.state?
+        state.act = self.state.act 
+        state.depth = self.state.depth
+        state.n_hid = self.state.n_hid 
+        state.noise = self.state.noise 
+        state.activation_regularization_coeff = self.state.activation_regularization_coeff 
+        state.weight_regularization_coeff = self.state.weight_regularization_coeff 
+        state.nepochs = self.state.nepochs 
+        state.lr = self.state.lr
+        state.noise_lvl = self.state.noise_lvl
+        state.epochstest = self.state.epochstest 
+        state.besterr = self.state.besterr
+        state.besterrepoch = self.state.besterrepoch
+        state.bestrec = self.state.bestrec
+        state.bestrecepoch = self.state.bestrecepoch
+        channel.save()
+
+
+def NLPSDAE(state,channel):
+    """This script launch a new, or stack on previous, SDAE experiment, training in a greedy layer wise fashion.
+    Only tanh and sigmoid activation are supported for stacking, a rectifier activation is possible at the last layer.
+    (waiting to validate the best method to stack rectifier on NISTP), it is possible to give a tfidf representation,
+    it will then create a softplus auxlayer for the depth 1 unsupervised pre-training with a quadratic reconstruction cost"""
+    trainer = trainNLPSDAE(state, channel)
+    return trainer.train()
