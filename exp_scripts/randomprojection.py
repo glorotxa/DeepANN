@@ -10,7 +10,7 @@ We might also scale the values and then squash them.
 USAGE:
     ./randomprojection.py [-d dimensions] [-s seed] file1.pkl ...
 
-    e.g. ./randomprojection.py -d 1000 /u/glorotxa/work/NLP/DARPAproject/*instances*pkl
+    e.g. ./randomprojection.py -d 1000 /u/glorotxa/work/NLP/DARPAproject/*instances_*pkl
 
 NOTE:
     * Right now, we only use a Gaussian random matrix.
@@ -158,7 +158,7 @@ if __name__ == "__main__":
             pass
         elif SQUASH == "erf":
             import scipy.special
-            newx = scipy.special.erf(newx)
+            newx = (scipy.special.erf(newx) + 1.)/2.
         elif SQUASH == "sigmoid":
             newx = 1.0 / (1.0 + numpy.exp(-newx))
         else:
