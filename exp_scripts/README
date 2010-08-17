@@ -9,6 +9,8 @@ TODO:
 
     * Rename state.depth to state.maxdepth or something, throughout. (Except sometimes we add it?)
 
+    * Add 'hg log | head' id to output.
+
 NOTE:
     * You should use have this Python library in your PYTHONPATH:
         http://github.com/turian/common
