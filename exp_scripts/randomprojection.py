@@ -147,7 +147,7 @@ if __name__ == "__main__":
         assert newx.shape == (x.shape[0], options.dimensions)
 
         if SCALE_BEFORE_SQUASH == None:
-            SCALE_BEFORE_SQUASH = 1. * newx.std()
+            SCALE_BEFORE_SQUASH = 1. / newx.std()
             print  >> sys.stderr, "Setting SCALE_BEFORE_SQUASH to %f on the basis of %s" % (SCALE_BEFORE_SQUASH, f)
 
         newx *= SCALE_BEFORE_SQUASH
