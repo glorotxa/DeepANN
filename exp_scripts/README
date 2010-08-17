@@ -11,13 +11,19 @@ TODO:
 
     * Add 'hg log | head' id to output.
 
+    * If the work directory already exists, should we just remove it entirely?
+    Currently we overwrite the files one by one. This is kind of dangerous
+    because if we abort prematurely, we have stale later files.
+
 NOTE:
     * You should use have this Python library in your PYTHONPATH:
         http://github.com/turian/common
 
+mkdir work/
+
 The simple command to lauch the script properly is:
 
-    PYTHONPATH=$PYTHONPATH:.. THEANO_FLAGS=mode=FAST_RUN,device=gpu0,floatX=float32 jobman cmdline DARPAscript.NLPSDAE DARPA-fast.conf
+    PYTHONPATH=$PYTHONPATH:.. THEANO_FLAGS=mode=FAST_RUN,device=gpu0,floatX=float32 jobman cmdline -w work/ DARPAscript.NLPSDAE DARPA-fast.conf
 
 - gpu0 means select the first GPU device.
 - DARPA-fast.conf is the conf file where your hyperparameters are

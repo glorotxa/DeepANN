@@ -197,9 +197,9 @@ def svm_validation(err, reconstruction_error, epoch, model, depth, ACT,LR,NOISE_
     rebuildunsup(model,depth,ACT,LR,NOISE_LVL,BATCHSIZE,train)
     reconstruction_error.update({epoch:TESTFUNC()})
 
-    print >> sys.stderr, 'VALIDATION: depth %d / epoch %d / reconstruction error (is this on test or train?): ' % (depth, epoch),reconstruction_error[epoch]
+    print >> sys.stderr, 'VALIDATION: depth %d / epoch %d / reconstruction error (is this on test or train?): ' % (depth+1, epoch),reconstruction_error[epoch]
     for trainsize in VALIDATION_TRAININGSIZE:
-        print >> sys.stderr, 'VALIDATION: depth %d / epoch %d / trainsize %d / svm error' % (depth, epoch, trainsize),err[trainsize][epoch]
+        print >> sys.stderr, 'VALIDATION: depth %d / epoch %d / trainsize %d / svm error' % (depth+1, epoch, trainsize),err[trainsize][epoch]
     print >> sys.stderr, stats()
 
     if epoch != 0:
@@ -208,8 +208,10 @@ def svm_validation(err, reconstruction_error, epoch, model, depth, ACT,LR,NOISE_
         for trainsize in VALIDATION_TRAININGSIZE:
             cPickle.dump(err[trainsize],f,-1)
         f.close()
-        os.mkdir(PATH_SAVE+'/depth%spre%s'%(depth+1,epoch))
-        model.save(PATH_SAVE+'/depth%spre%s'%(depth+1,epoch))
+        modeldir = os.path.join(PATH_SAVE, 'depth%spre%s' % (depth+1,epoch))
+        if not os.path.isdir(modeldir):
+            os.mkdir(modeldir)
+        model.save(modeldir)
 
     print >> sys.stderr, "...done validating (err=%s,epoch=%s,model=%s,depth=%s,ACT=%s,LR=%s,NOISE_LVL=%s,BATCHSIZE=%s,train=%s,datatrain=%s,datatrainsave=%s,datatest=%s,datatestsave=%s,VALIDATION_TRAININGSIZE=%s,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE=%s,PATH_SAVE=%s)" % (err, epoch, model, depth, ACT,LR,NOISE_LVL,BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE)
     print >> sys.stderr, stats()
@@ -290,7 +292,9 @@ def NLPSDAE(state,channel):
         assert ACT.index('rectifier')== DEPTH -1
         # Methods to stack rectifier are still in evaluation (5 different techniques)
         # The best will be implemented in the script soon :).
-    f =open(PATH_DATA + NAME_DATATEST + '_1.pkl','r')
+    filename = PATH_DATA + NAME_DATATEST + '_1.pkl'
+    print filename
+    f =open(filename,'r')
     train = theano.shared(numpy.asarray(cPickle.load(f),dtype=theano.config.floatX))
     f.close()
     normalshape = train.value.shape
