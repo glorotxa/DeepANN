@@ -209,10 +209,9 @@ def svm_validation(err, reconstruction_error, epoch, model, depth, ACT,LR,NOISE_
     rebuildunsup(model,depth,ACT,LR,NOISE_LVL,BATCHSIZE,train)
     reconstruction_error.update({epoch:TESTFUNC()})
 
-    print >> sys.stderr, '##########  TEST ############ EPOCH : ', epoch
-    print >> sys.stderr, 'CURRENT RECONSTRUCTION ERROR (is this on test or train?): ',reconstruction_error[epoch]
+    print >> sys.stderr, 'VALIDATION: epoch %d / reconstruction error (is this on test or train?): ',reconstruction_error[epoch]
     for trainsize in VALIDATION_TRAININGSIZE:
-        print >> sys.stderr, 'CURRENT %d SVM ERROR: ' % trainsize,err[trainsize][epoch]
+        print >> sys.stderr, 'VALIDATION: epoch %d / trainsize %d / svm error' % trainsize,err[trainsize][epoch]
     print >> sys.stderr, stats()
 
     if epoch != 0:
