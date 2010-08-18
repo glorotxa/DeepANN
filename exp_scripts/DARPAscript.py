@@ -360,6 +360,9 @@ def NLPSDAE(state,channel):
         epoch = 0
         if epoch in EPOCHSTEST[depth]:
             svm_validation(err, reconstruction_error, epoch, model, depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA, NAME_DATATEST)
+            state.currentepoch = epoch
+            state.currentdepth = depth
+            channel.save()
 
         for epoch in xrange(1,NEPOCHS[depth]+1):
             time1 = time.time()
