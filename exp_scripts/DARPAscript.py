@@ -278,8 +278,8 @@ def NLPSDAE(state,channel):
         ACT = oldstate.act + ACT
         N_HID = oldstate.n_hid + N_HID
         NOISE = oldstate.noise + NOISE
-        L1 = oldstate.l1 + L1
-        L2 = oldstate.l2[:-1] + L2
+        ACTIVATION_REGULARIZATION_COEFF = oldstate.activation_regularization_coeff + ACTIVATION_REGULARIZATION_COEFF
+        WEIGHT_REGULATIZATION_COEFF = oldstate.weight_regularization_coeff[:-1] + WEIGHT_REGULATIZATION_COEFF
         NEPOCHS = oldstate.nepochs + NEPOCHS
         LR = oldstate.lr + LR
         NOISE_LVL = oldstate.noise_lvl + NOISE_LVL
@@ -298,7 +298,7 @@ def NLPSDAE(state,channel):
     train = theano.shared(numpy.asarray(cPickle.load(f),dtype=theano.config.floatX))
     f.close()
     normalshape = train.value.shape
-
+    
     model=SDAE(numpy.random,RandomStreams(),DEPTH,True,act=ACT,n_hid=N_HID,n_out=5,sparsity=ACTIVATION_REGULARIZATION_COEFF,\
             regularization=WEIGHT_REGULARIZATION_COEFF, wdreg = WEIGHT_REGULARIZATION_TYPE, spreg = ACTIVATION_REGULARIZATION_TYPE, n_inp=NINPUTS,noise=NOISE,tie=True)
 
