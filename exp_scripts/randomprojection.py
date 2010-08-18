@@ -5,10 +5,12 @@ a random projection on it.
 We will create a subdirectory and save the projected matrix to a
 corresponding .pkl file in that subdir.
 
+We might also scale the values and then squash them.
+
 USAGE:
     ./randomprojection.py [-d dimensions] [-s seed] file1.pkl ...
 
-    e.g. ./randomprojection.py -d 1000 /u/glorotxa/work/NLP/DARPAproject/*instances*pkl
+    e.g. ./randomprojection.py -d 1000 /u/glorotxa/work/NLP/DARPAproject/*instances_*pkl
 
 NOTE:
     * Right now, we only use a Gaussian random matrix.
@@ -40,6 +42,11 @@ MODE = "online"     # Deterministic, low-memory version
                     # your random projections in one invocation.)
                     # Could be, in principle, slower than online if the
                     # number of entries >> #nonzeros.
+
+#SQUASH="sigmoid"   # "none", "erf", or "sigmoid"
+SQUASH="erf"   # "none", "erf", or "sigmoid"
+#SCALE_BEFORE_SQUASH=1/5.7
+SCALE_BEFORE_SQUASH=None
 
 RANDOMIZATION_TYPE="gaussian"
                     # No other option is currently supported
@@ -139,7 +146,27 @@ if __name__ == "__main__":
         newx = project(x, dimensions=options.dimensions, seed=options.seed, randomization_type=RANDOMIZATION_TYPE, mode=MODE)
         assert newx.shape == (x.shape[0], options.dimensions)
 
-        newdir = os.path.join(os.path.dirname(f), "randomprojection.dimensions=%d.seed=%d.randomization=%s.mode=%s" % (options.dimensions, options.seed, RANDOMIZATION_TYPE, MODE))
+        if SCALE_BEFORE_SQUASH == None:
+            SCALE_BEFORE_SQUASH = 1. / newx.std()
+            print  >> sys.stderr, "Setting SCALE_BEFORE_SQUASH to %f on the basis of %s" % (SCALE_BEFORE_SQUASH, f)
+
+        newx *= SCALE_BEFORE_SQUASH
+
+        print >> sys.stderr, "After scaling by %f but before squashing using %s, newx mean = %f and stddev = %f" % (SCALE_BEFORE_SQUASH, SQUASH, numpy.mean(newx), numpy.std(newx))
+
+        if SQUASH == "none":
+            pass
+        elif SQUASH == "erf":
+            import scipy.special
+            newx = (scipy.special.erf(newx) + 1.)/2.
+        elif SQUASH == "sigmoid":
+            newx = 1.0 / (1.0 + numpy.exp(-newx))
+        else:
+            assert 0
+
+        print >> sys.stderr, "After scaling by %f and squashing using %s, newx mean = %f and stddev = %f" % (SCALE_BEFORE_SQUASH, SQUASH, numpy.mean(newx), numpy.std(newx))
+
+        newdir = os.path.join(os.path.dirname(f), "randomprojection.dimensions=%d.seed=%d.randomization=%s.mode=%s.scale=%f.squash=%s" % (options.dimensions, options.seed, RANDOMIZATION_TYPE, MODE, SCALE_BEFORE_SQUASH, SQUASH))
         newf = os.path.join(newdir, os.path.basename(f))
 
         if not os.path.isdir(newdir):

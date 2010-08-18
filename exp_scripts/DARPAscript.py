@@ -15,28 +15,13 @@ from jobman.parse import filemerge
 from common.stats import stats
 from common.str import percent
 
-#hardcoded path to your liblinear source:
-SVMPATH = '/u/glorotxa/work/NLP/DARPAproject/netscale_sentiment_for_ET/lib/liblinear/'
-SVMRUNALL_PATH = os.path.join(SVMPATH, "run_all")
-assert os.access(SVMRUNALL_PATH, os.X_OK)
-
-BATCH_TEST = 100
-BATCH_CREATION_LIBSVM = 500
-NB_MAX_TRAINING_EXAMPLES_SVM = 10000
-#NB_MAX_TRAINING_EXAMPLES_SVM = 1000     # FIXME: Change back to 10000 <========================================================================
-                                        # 1000 is just for fast running during development
-#NB_MAX_TRAINING_EXAMPLES_SVM = 100     # FIXME: Change back to 10000 <========================================================================
-#                                        # 100 is just for superfast running during development
-
-SVM_INITIALC    = 0.01
-SVM_STEPFACTOR  = 10.
-SVM_MAXSTEPS    = 20
-
 # TRAINFUNC is a handle to the model's training function. It is a global
 # because it is connected to internal state in the Model. Each time the
 # model changes, update TRAINFUNC!
 TRAINFUNC       = None
 TESTFUNC        = None
+
+globalstate = None
 
 def rebuildunsup(model,depth,ACT,LR,NOISE_LVL,batchsize,train):
     """
@@ -64,13 +49,13 @@ def rebuildunsup(model,depth,ACT,LR,NOISE_LVL,batchsize,train):
         n = train.value.shape[0] / batchsize
         def tes():
             sum=0
-            for i in range(train.value.shape[0]/BATCH_TEST):
+            for i in range(train.value.shape[0]/globalstate.BATCH_TEST):
                 sum+=testfunc(i)
             return sum/float(i+1)
         TESTFUNC = tes
     else:
         TRAINFUNC,n = model.trainfunctionbatch(train,None,train, batchsize=batchsize)
-        TESTFUNC = model.costfunction(train,None,train, batchsize=BATCH_TEST)
+        TESTFUNC = model.costfunction(train,None,train, batchsize=globalstate.BATCH_TEST)
 
 def createlibsvmfile(model,depth,datafiles,dataout):
     print >> sys.stderr, 'Creating libsvm file %s (model=%s, depth=%d, datafiles=%s)...' % (repr(dataout), repr(model),depth,datafiles)
@@ -84,11 +69,11 @@ def createlibsvmfile(model,depth,datafiles,dataout):
     labels = numpy.asarray(cPickle.load(f),dtype = 'int64')
     f.close()
     f = open(dataout,'w')
-    for i in range(NB_MAX_TRAINING_EXAMPLES_SVM/BATCH_CREATION_LIBSVM):
+    for i in range(globalstate.NB_MAX_TRAINING_EXAMPLES_SVM/globalstate.BATCH_CREATION_LIBSVM):
         textr = ''
-        rep = func(instances[BATCH_CREATION_LIBSVM*i:BATCH_CREATION_LIBSVM*(i+1),:])[0]
+        rep = func(instances[globalstate.BATCH_CREATION_LIBSVM*i:globalstate.BATCH_CREATION_LIBSVM*(i+1),:])[0]
         for l in range(rep.shape[0]):
-            textr += '%s '%labels[BATCH_CREATION_LIBSVM*i+l]
+            textr += '%s '%labels[globalstate.BATCH_CREATION_LIBSVM*i+l]
             idx = rep[l,:].nonzero()[0]
             for j,v in zip(idx,rep[l,idx]):
                 textr += '%s:%s '%(j,v)
@@ -107,7 +92,7 @@ def svm_validation_for_one_trainsize_and_one_C(C, nbinputs,numruns,datatrainsave
     """
     print >> sys.stderr, "\t\tTraining SVM with C=%f, nbinputs=%d, numruns=%d" % (C, nbinputs,numruns)
 
-    os.system('%s -s 4 -c %s -l %s -r %s -q %s %s %s > /dev/null 2> /dev/null'%(SVMRUNALL_PATH,C,nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
+    os.system('%s -s 4 -c %s -l %s -r %s -q %s %s %s > /dev/null 2> /dev/null'%(globalstate.SVMRUNALL_PATH,C,nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
     results = open(PATH_SAVE+'/currentsvm.txt','r').readline()[:-1].split(' ')
     os.remove(PATH_SAVE+'/currentsvm.txt')
     trainerr    = float(results[1])
@@ -117,7 +102,7 @@ def svm_validation_for_one_trainsize_and_one_C(C, nbinputs,numruns,datatrainsave
     return testerr,testerrdev,trainerr,trainerrdev
 
 
-def svm_validation_for_one_trainsize(nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE,MAXSTEPS=SVM_MAXSTEPS,STEPFACTOR=SVM_STEPFACTOR, INITIALC=SVM_INITIALC):
+def svm_validation_for_one_trainsize(nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE):
     """
     Train an SVM on nbinputs training examples, for numrums runs.
     Choose the value of C using a linesearch to minimize the testerr.
@@ -127,6 +112,9 @@ def svm_validation_for_one_trainsize(nbinputs,numruns,datatrainsave,datatestsave
     MAXSTEPS is the number of steps performed in the line search.
     STEPFACTOR is the initial step size.
     """
+    MAXSTEPS=globalstate.SVM_MAXSTEPS
+    STEPFACTOR=globalstate.SVM_STEPFACTOR
+    INITIALC=globalstate.SVM_INITIALC
 
     print >> sys.stderr, 'Starting SVM validation for %s examples (numrums=%d, datatrainsave=%s, datatestsave=%s, PATH_SAVE=%s, MAXSTEPS=%d, STEPFACTOR=%f, INITIALC=%f)...' % (nbinputs, numruns,datatrainsave,datatestsave, PATH_SAVE,MAXSTEPS, STEPFACTOR, INITIALC)
     print >> sys.stderr, stats()
@@ -209,10 +197,9 @@ def svm_validation(err, reconstruction_error, epoch, model, depth, ACT,LR,NOISE_
     rebuildunsup(model,depth,ACT,LR,NOISE_LVL,BATCHSIZE,train)
     reconstruction_error.update({epoch:TESTFUNC()})
 
-    print >> sys.stderr, '##########  TEST ############ EPOCH : ', epoch
-    print >> sys.stderr, 'CURRENT RECONSTRUCTION ERROR (is this on test or train?): ',reconstruction_error[epoch]
+    print >> sys.stderr, 'VALIDATION: depth %d / epoch %d / reconstruction error (is this on test or train?): ' % (depth+1, epoch),reconstruction_error[epoch]
     for trainsize in VALIDATION_TRAININGSIZE:
-        print >> sys.stderr, 'CURRENT %d SVM ERROR: ' % trainsize,err[trainsize][epoch]
+        print >> sys.stderr, 'VALIDATION: depth %d / epoch %d / trainsize %d / svm error' % (depth+1, epoch, trainsize),err[trainsize][epoch]
     print >> sys.stderr, stats()
 
     if epoch != 0:
@@ -221,8 +208,10 @@ def svm_validation(err, reconstruction_error, epoch, model, depth, ACT,LR,NOISE_
         for trainsize in VALIDATION_TRAININGSIZE:
             cPickle.dump(err[trainsize],f,-1)
         f.close()
-        os.mkdir(PATH_SAVE+'/depth%spre%s'%(depth+1,epoch))
-        model.save(PATH_SAVE+'/depth%spre%s'%(depth+1,epoch))
+        modeldir = os.path.join(PATH_SAVE, 'depth%spre%s' % (depth+1,epoch))
+        if not os.path.isdir(modeldir):
+            os.mkdir(modeldir)
+        model.save(modeldir)
 
     print >> sys.stderr, "...done validating (err=%s,epoch=%s,model=%s,depth=%s,ACT=%s,LR=%s,NOISE_LVL=%s,BATCHSIZE=%s,train=%s,datatrain=%s,datatrainsave=%s,datatest=%s,datatestsave=%s,VALIDATION_TRAININGSIZE=%s,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE=%s,PATH_SAVE=%s)" % (err, epoch, model, depth, ACT,LR,NOISE_LVL,BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE)
     print >> sys.stderr, stats()
@@ -233,6 +222,12 @@ def NLPSDAE(state,channel):
     Only tanh and sigmoid activation are supported for stacking, a rectifier activation is possible at the last layer.
     (waiting to validate the best method to stack rectifier on NISTP), it is possible to give a tfidf representation,
     it will then create a softplus auxlayer for the depth 1 unsupervised pre-training with a quadratic reconstruction cost"""
+
+    global globalstate
+    globalstate = state
+    globalstate.SVMRUNALL_PATH = os.path.join(globalstate.SVMPATH, "run_all")
+
+    assert os.access(globalstate.SVMRUNALL_PATH, os.X_OK)
 
     # Hyper-parameters
     LR = state.lr#list
@@ -297,7 +292,9 @@ def NLPSDAE(state,channel):
         #assert ACT.index('rectifier')== DEPTH -1
         # Methods to stack rectifier are still in evaluation (5 different techniques)
         # The best will be implemented in the script soon :).
-    f =open(PATH_DATA + NAME_DATATEST + '_1.pkl','r')
+    filename = PATH_DATA + NAME_DATATEST + '_1.pkl'
+    print filename
+    f =open(filename,'r')
     train = theano.shared(numpy.asarray(cPickle.load(f),dtype=theano.config.floatX))
     f.close()
     normalshape = train.value.shape
