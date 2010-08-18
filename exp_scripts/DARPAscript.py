@@ -293,8 +293,8 @@ def NLPSDAE(state,channel):
         state.bestrecepoch = oldstate.bestrec
         del oldstate
 
-    if 'rectifier' in ACT:
-        assert ACT.index('rectifier')== DEPTH -1
+    #if 'rectifier' in ACT:
+        #assert ACT.index('rectifier')== DEPTH -1
         # Methods to stack rectifier are still in evaluation (5 different techniques)
         # The best will be implemented in the script soon :).
     f =open(PATH_DATA + NAME_DATATEST + '_1.pkl','r')
@@ -340,14 +340,21 @@ def NLPSDAE(state,channel):
             model.auxiliary(init=1,auxact='softplus',auxdepth=-DEPTH+depth+1, auxn_out=n_aux)
         else:
             model.depth_max = model.depth_max+1
-            if depth==1 and INPUTTYPE == 'tfidf':
+            if depth == 0 or ACT[depth-1] != 'rectifier':
                 model.reconstruction_cost = 'cross_entropy'
                 model.reconstruction_cost_fn = cross_entropy_cost
-            if model.auxlayer != None:
-                del model.auxlayer.W
-                del model.auxlayer.b
-            model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxn_out=n_aux)
-
+                if model.auxlayer != None:
+                    del model.auxlayer.W
+                    del model.auxlayer.b
+                model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxn_out=n_aux)
+            else:
+                model.reconstruction_cost = 'quadratic'
+                model.reconstruction_cost_fn = quadratic_cost
+                if model.auxlayer != None:
+                    del model.auxlayer.W
+                    del model.auxlayer.b
+                model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxact='softplus',auxn_out=n_aux,maskinit = model.layers[depth-1].mask.value)
+ 
         reconstruction_error = {}
         err = dict([(trainsize, {}) for trainsize in VALIDATION_TRAININGSIZE])
 
