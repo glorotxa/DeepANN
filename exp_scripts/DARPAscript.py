@@ -227,6 +227,7 @@ def NLPSDAE(state,channel):
     globalstate = state
     globalstate.SVMRUNALL_PATH = os.path.join(globalstate.SVMPATH, "run_all")
 
+    print >> sys.stderr, globalstate.SVMRUNALL_PATH
     assert os.access(globalstate.SVMRUNALL_PATH, os.X_OK)
 
     # Hyper-parameters
@@ -385,7 +386,8 @@ def NLPSDAE(state,channel):
                     del object
                 f.close()
                 for j in range(currentn/BATCHSIZE):
-                    dum = TRAINFUNC(j)
+                    reconstruction_error_over_batch = TRAINFUNC(j)
+#                    print reconstruction_error_over_batch
 #                current_file_time = time.time()
 #                print >> sys.stderr, 'File:',filenb,time.time()-time2, '----'
                 print >> sys.stderr, "\t\tFinished training over file %s" % percent(filenb, NB_FILES)
