@@ -278,8 +278,8 @@ def NLPSDAE(state,channel):
         ACT = oldstate.act + ACT
         N_HID = oldstate.n_hid + N_HID
         NOISE = oldstate.noise + NOISE
-        L1 = oldstate.l1 + L1
-        L2 = oldstate.l2[:-1] + L2
+        ACTIVATION_REGULARIZATION_COEFF = oldstate.activation_regularization_coeff + ACTIVATION_REGULARIZATION_COEFF
+        WEIGHT_REGULATIZATION_COEFF = oldstate.weight_regularization_coeff[:-1] + WEIGHT_REGULATIZATION_COEFF
         NEPOCHS = oldstate.nepochs + NEPOCHS
         LR = oldstate.lr + LR
         NOISE_LVL = oldstate.noise_lvl + NOISE_LVL
@@ -288,8 +288,8 @@ def NLPSDAE(state,channel):
         state.bestrecepoch = oldstate.bestrec
         del oldstate
 
-    if 'rectifier' in ACT:
-        assert ACT.index('rectifier')== DEPTH -1
+    #if 'rectifier' in ACT:
+        #assert ACT.index('rectifier')== DEPTH -1
         # Methods to stack rectifier are still in evaluation (5 different techniques)
         # The best will be implemented in the script soon :).
     filename = PATH_DATA + NAME_DATATEST + '_1.pkl'
@@ -298,7 +298,7 @@ def NLPSDAE(state,channel):
     train = theano.shared(numpy.asarray(cPickle.load(f),dtype=theano.config.floatX))
     f.close()
     normalshape = train.value.shape
-
+    
     model=SDAE(numpy.random,RandomStreams(),DEPTH,True,act=ACT,n_hid=N_HID,n_out=5,sparsity=ACTIVATION_REGULARIZATION_COEFF,\
             regularization=WEIGHT_REGULARIZATION_COEFF, wdreg = WEIGHT_REGULARIZATION_TYPE, spreg = ACTIVATION_REGULARIZATION_TYPE, n_inp=NINPUTS,noise=NOISE,tie=True)
 
@@ -337,14 +337,21 @@ def NLPSDAE(state,channel):
             model.auxiliary(init=1,auxact='softplus',auxdepth=-DEPTH+depth+1, auxn_out=n_aux)
         else:
             model.depth_max = model.depth_max+1
-            if depth==1 and INPUTTYPE == 'tfidf':
+            if depth == 0 or ACT[depth-1] != 'rectifier':
                 model.reconstruction_cost = 'cross_entropy'
                 model.reconstruction_cost_fn = cross_entropy_cost
-            if model.auxlayer != None:
-                del model.auxlayer.W
-                del model.auxlayer.b
-            model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxn_out=n_aux)
-
+                if model.auxlayer != None:
+                    del model.auxlayer.W
+                    del model.auxlayer.b
+                model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxn_out=n_aux)
+            else:
+                model.reconstruction_cost = 'quadratic'
+                model.reconstruction_cost_fn = quadratic_cost
+                if model.auxlayer != None:
+                    del model.auxlayer.W
+                    del model.auxlayer.b
+                model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxact='softplus',auxn_out=n_aux,maskinit = model.layers[depth-1].mask.value)
+ 
         reconstruction_error = {}
         err = dict([(trainsize, {}) for trainsize in VALIDATION_TRAININGSIZE])
 
@@ -353,6 +360,9 @@ def NLPSDAE(state,channel):
         epoch = 0
         if epoch in EPOCHSTEST[depth]:
             svm_validation(err, reconstruction_error, epoch, model, depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA, NAME_DATATEST)
+            state.currentepoch = epoch
+            state.currentdepth = depth
+            channel.save()
 
         for epoch in xrange(1,NEPOCHS[depth]+1):
             time1 = time.time()
