@@ -14,6 +14,7 @@ from jobman.parse import filemerge
 
 from common.stats import stats
 from common.str import percent
+from common.movingaverage import MovingAverage
 
 # TRAINFUNC is a handle to the model's training function. It is a global
 # because it is connected to internal state in the Model. Each time the
@@ -324,6 +325,8 @@ def NLPSDAE(state,channel):
     state.epochstest = EPOCHSTEST
     channel.save()
 
+
+    train_reconstruction_error_mvgavg = MovingAverage()
     for depth in xrange(depthbegin,DEPTH):
         print >> sys.stderr, 'BEGIN DEPTH %s...' % (percent(depth+1, DEPTH - depthbegin))
         print >> sys.stderr, stats()
@@ -387,10 +390,11 @@ def NLPSDAE(state,channel):
                 f.close()
                 for j in range(currentn/BATCHSIZE):
                     reconstruction_error_over_batch = TRAINFUNC(j)
+                    train_reconstruction_error_mvgavg.add(reconstruction_error_over_batch)
 #                    print reconstruction_error_over_batch
 #                current_file_time = time.time()
 #                print >> sys.stderr, 'File:',filenb,time.time()-time2, '----'
-                print >> sys.stderr, "\t\tFinished training over file %s" % percent(filenb, NB_FILES)
+                print >> sys.stderr, "\t\tAt depth %d, epoch %d, finished training over file %s, training pre-update reconstruction error %s" % (depth, epoch, percent(filenb, NB_FILES), train_reconstruction_error_mvgavg)
                 print >> sys.stderr, "\t\t", stats()
             print >> sys.stderr, '...finished training epoch #%s' % percent(epoch, NEPOCHS[depth])
             print >> sys.stderr, stats()
