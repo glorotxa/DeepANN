@@ -388,6 +388,10 @@ def NLPSDAE(state,channel):
                     currentn = object.shape[0]
                     del object
                 f.close()
+                if train.value.min() < 0:
+                    print >> sys.stderr, "WARNING: Negative input, currently input should be positive"
+                if train.value.max() > 1. and inputtype!='tfidf':
+                    print >> sys.stderr, "WARNING: Some inputs are > 1, without tfidf inputtype, it should be in the range [0,1]" 
                 for j in range(currentn/BATCHSIZE):
                     reconstruction_error_over_batch = TRAINFUNC(j)
                     train_reconstruction_error_mvgavg.add(reconstruction_error_over_batch)
