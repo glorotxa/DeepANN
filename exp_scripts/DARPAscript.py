@@ -326,7 +326,6 @@ def NLPSDAE(state,channel):
     channel.save()
 
 
-    train_reconstruction_error_mvgavg = MovingAverage()
     for depth in xrange(depthbegin,DEPTH):
         print >> sys.stderr, 'BEGIN DEPTH %s...' % (percent(depth+1, DEPTH - depthbegin))
         print >> sys.stderr, stats()
@@ -368,12 +367,17 @@ def NLPSDAE(state,channel):
             state.currentdepth = depth
             channel.save()
 
+        train_reconstruction_error_mvgavg = MovingAverage()
         for epoch in xrange(1,NEPOCHS[depth]+1):
             time1 = time.time()
             for filenb in xrange(1,NB_FILES + 1):
+                print >> sys.stderr, "\t\tAbout to read file %s..." % percent(filenb, NB_FILES)
+                print >> sys.stderr, "\t\t", stats()
 #                initial_file_time = time.time()
                 f =open(PATH_DATA + NAME_DATA +'_%s.pkl'%filenb,'r')
                 object = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
+                print >> sys.stderr, "\t\t...read file %s" % percent(filenb, NB_FILES)
+                print >> sys.stderr, "\t\t", stats()
                 # The last training file is not of the same shape as the other training files.
                 # So, to avoid a GPU memory error, we want to make sure it is the same size.
                 # In which case, we pad the matrix but keep track of how many n (instances) there actually are.
@@ -402,9 +406,13 @@ def NLPSDAE(state,channel):
                 print >> sys.stderr, "\t\t", stats()
             print >> sys.stderr, '...finished training epoch #%s' % percent(epoch, NEPOCHS[depth])
             print >> sys.stderr, stats()
+#            sys.stderr.flush()
+#           or maybe you need
+            #jobman cachesync
 
             if epoch in EPOCHSTEST[depth]:
                 svm_validation(err, reconstruction_error, epoch, model,depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA, NAME_DATATEST)
+                channel.save()
 
         if len(EPOCHSTEST[depth])!=0:
             recmin = numpy.min(reconstruction_error.values())
