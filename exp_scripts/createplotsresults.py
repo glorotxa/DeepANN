@@ -48,11 +48,12 @@ for i in range(depth):
     for j in val_run:
         errtmp.update({j:cPickle.load(f)})
     for j in numpy.sort(epochstest[i]):
-        epochvect[i] += [j+epochoffset]
-        rec[i] += [rectmp[j]]
-        for k in val_run:
-            err[i][k] += [errtmp[k][j][1]]
-    epochoffset+=nepochs[i]
+	if j in rectmp.keys():
+            epochvect[i] += [j+epochoffset]
+            rec[i] += [rectmp[j]]
+            for k in val_run:
+                err[i][k] += [errtmp[k][j][1]]
+    	    epochoffset+=nepochs[i]
 
 for j in range(depth):
     pylab.figure(1)    
