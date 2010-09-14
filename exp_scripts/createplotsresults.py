@@ -3,7 +3,6 @@ it must be launched in the folder containing the current.conf file and will crea
 plots: SVM error with respect to number of epochs for all the different number of training exemples
 for all layer in the same graph and reconstruction error. """
   
-
 import cPickle
 import matplotlib
 matplotlib.use('Agg')
@@ -13,14 +12,9 @@ import numpy
 from jobman.tools import DD,expand
 from jobman.parse import filemerge
 
-
-
-
 rec = {}
 err = {}
 epochvect = {}
-
-
 
 state = expand(DD(filemerge('orig.conf')))
 val_run_per_tr_siz = state.validation_runs_for_each_trainingsize
@@ -53,7 +47,7 @@ for i in range(depth):
             rec[i] += [rectmp[j]]
             for k in val_run:
                 err[i][k] += [errtmp[k][j][1]]
-    	    epochoffset+=nepochs[i]
+    epochoffset+=nepochs[i]
 
 for j in range(depth):
     pylab.figure(1)    
