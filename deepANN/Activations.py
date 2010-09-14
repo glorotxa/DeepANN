@@ -38,6 +38,9 @@ def softplus_act(x): #@TO DO: rescale in order to have a steady state regime clo
 def abs_act(x):
     return theano.tensor.abs_(x)
 
+def lin_act(x):
+    return x
+
 # @TO TEST---------------------------------------------------------------------
 def arsinh_act(x):
     return T.log(x+T.sqrt(1+x*x))
@@ -95,6 +98,9 @@ def softplus_der(x): #@TO DO: rescale in order to have a steady state regime clo
 
 def abs_der(x):
     return T.sgn(x)
+
+def lin_der(x):
+    return T.ones_like(x)
 
 # @TO TEST---------------------------------------------------------------------
 def arsinh_der(x):

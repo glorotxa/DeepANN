@@ -99,10 +99,10 @@ class DenseLayer(object):
         # Units specification
         self.one_sided = False if act in ['tanh','tanhnorm','softsign','arsinh','plc'] else True
         self.maskinit = maskinit
-        if self.maskinit == 1:
+        if type(self.maskinit) != numpy.ndarray and self.maskinit == 1:
             self.one_sided = False
-        if self.maskinit != 1 and self.maskinit != None:
-            if sum(self.maskinit.value) != self.maskinit.value.shape[0]:
+        if type(self.maskinit) == numpy.ndarray:
+            if sum(self.maskinit) != self.maskinit.shape[0]:
                 self.one_sided = False
         self.bounded = False if act in ['rectifier','softplus','arsinh','pascalv'] else 1.
         #special cases
@@ -133,11 +133,11 @@ class DenseLayer(object):
             self.b = binit
         
         allocmask = False # to track allocation of the mask
-        if self.maskinit == None or self. maskinit == 1: # if no initial bias are given, do the 0 initialization
+        if type(self.maskinit) != numpy.ndarray: # if no initial bias are given, do the 0 initialization
             if self.maskinit == 1:
                 mask_values = numpy.asarray((rng.binomial(1,0.5,(n_out,))-0.5)*2, dtype= theano.config.floatX)
                 allocmask = 'random'
-            else:
+            else: #None
                 mask_values = numpy.ones((n_out,), dtype= theano.config.floatX)
                 allocmask = 'ones'
             self.mask = theano.shared(value= mask_values, name = 'mask'+self.tag)
@@ -676,7 +676,7 @@ class SDAE(object):
     
     def auxiliary(self, init, auxdepth, auxn_out, aux_scaling=1., auxregularization = False,
             auxlayertype = DenseLayer, auxact = 'sigmoid', aux_one_sided = True,
-            auxwdreg = 'l2', Wtmp = None, btmp = None,afficheb = True):
+            auxwdreg = 'l2', Wtmp = None, btmp = None,afficheb = True, maskinit = None):
         """ This creates an auxiliary target layer in the network.
 
             It will overwrite the old self.auxlayer, unless you pass the
@@ -717,7 +717,8 @@ class SDAE(object):
             print >> sys.stderr, '\t---- Auxiliary Layer ----'
             self.auxlayer = self.auxlayertype(self.rng, self.theano_rng,tmp_inp,tmp_n_inp,auxn_out,
                                             auxact, noise = None, Winit = Wtmp, binit = btmp, wdreg = auxwdreg,
-                                            spreg = 'l1', tag = 'aux' + '%s'%(auxdepth),upmaskbool = self.bbbool)
+                                            spreg = 'l1', tag = 'aux' + '%s'%(auxdepth),upmaskbool = self.bbbool,
+                                            maskinit=maskinit)
         else: #delete side
             assert self.mode != 'Aux'
             self.aux = False
