@@ -24,7 +24,7 @@ TESTFUNC        = None
 
 globalstate = None
 
-def rebuildunsup(model,depth,ACT,LR,NOISE_LVL,batchsize,train):
+def rebuildunsup(model,depth,ACT,LR,NOISE_LVL,batchsize,train,rule):
     """
     Modify the global TRAINFUNC and TESTFUNC.
     TODO: FIXME! Is it possible not to use global state? If the TRAINFUNC
@@ -43,8 +43,17 @@ def rebuildunsup(model,depth,ACT,LR,NOISE_LVL,batchsize,train):
             #rescaling between 0 and 1 of the target
             givens.update({model.auxtarget : (model.layers[depth-1].out+1.)/2.})
         else:
-            #no rescaling needed if sigmoid
-            givens.update({model.auxtarget : model.layers[depth-1].out})
+            assert rule != None
+            if rule in [1,2,3,5]:
+                givens.update({model.auxtarget : T.abs_(model.layers[depth-1].out)})
+            if rule == 4:
+                givens.update({model.auxtarget : sigmoid_act(model.layers[depth-1].lin)})
+            if rule == 5:
+                cost = (model.auxtarget > 0.0) * (T.log(numpy.sqrt(2.*numpy.pi) * (T.abs_(model.auxsigma)+model.auxsigmamin)) + 0.5 * ((model.auxtarget - model.auxlayer.lin)/ (T.abs_(model.auxsigma)+model.auxsigmamin))**2) - \
+                       (model.auxtarget == 0.0) * (T.log(0.5) + T.log(1 + T.erf(-model.auxlayer.lin / ( (T.abs_(model.auxsigma)+model.auxsigmamin) * numpy.sqrt(2.)))))
+                model.cost = (cost.sum(1)).mean()
+                grad = T.grad(model.cost,model.params + model.auxlayer.params + [model.auxsigma] )
+	        model.updates = dict((p,p - model.lr * g) for p, g in zip(model.params + model.auxlayer.params + [model.auxsigma] , grad))
         TRAINFUNC = theano.function([index],model.cost,updates = model.updates, givens = givens)
         testfunc = theano.function([index],model.cost, givens = givens)
         n = train.value.shape[0] / batchsize
@@ -166,7 +175,7 @@ def svm_validation_for_one_trainsize(nbinputs,numruns,datatrainsave,datatestsave
 
     return [Cbest] + list(C_to_allstats[Cbest])
 
-def svm_validation(err, reconstruction_error, epoch, model, depth, ACT,LR,NOISE_LVL,BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA, NAME_DATATEST):
+def svm_validation(err, reconstruction_error, epoch, model, depth, ACT,LR,NOISE_LVL,BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA, NAME_DATATEST,RULE):
     """
     Perform full SVM validation.
     """
@@ -177,7 +186,7 @@ def svm_validation(err, reconstruction_error, epoch, model, depth, ACT,LR,NOISE_
 
     # Call with noiselevel = None before running the SVM.
     # No noise because we want the exact representation for each instance.
-    rebuildunsup(model,depth,ACT,LR,None,BATCHSIZE,train)
+    rebuildunsup(model,depth,ACT,LR,None,BATCHSIZE,train,RULE)
 
     createlibsvmfile(model,depth,datatrain,datatrainsave)
     createlibsvmfile(model,depth,datatest,datatestsave)
@@ -195,7 +204,7 @@ def svm_validation(err, reconstruction_error, epoch, model, depth, ACT,LR,NOISE_
         f.close()
 
     # Now, restore TRAINFUNC with the original NOISE_LVL
-    rebuildunsup(model,depth,ACT,LR,NOISE_LVL,BATCHSIZE,train)
+    rebuildunsup(model,depth,ACT,LR,NOISE_LVL,BATCHSIZE,train,RULE)
     reconstruction_error.update({epoch:TESTFUNC()})
 
     print >> sys.stderr, 'VALIDATION: depth %d / epoch %d / reconstruction error (is this on test or train?): ' % (depth+1, epoch),reconstruction_error[epoch]
@@ -213,6 +222,10 @@ def svm_validation(err, reconstruction_error, epoch, model, depth, ACT,LR,NOISE_
         if not os.path.isdir(modeldir):
             os.mkdir(modeldir)
         model.save(modeldir)
+        if RULE == 5:
+            f = open(modeldir + '/auxsigma.pkl','w')
+            cPickle.dump(model.auxsigma.value,f,-1)
+            f.close()
 
     print >> sys.stderr, "...done validating (err=%s,epoch=%s,model=%s,depth=%s,ACT=%s,LR=%s,NOISE_LVL=%s,BATCHSIZE=%s,train=%s,datatrain=%s,datatrainsave=%s,datatest=%s,datatestsave=%s,VALIDATION_TRAININGSIZE=%s,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE=%s,PATH_SAVE=%s)" % (err, epoch, model, depth, ACT,LR,NOISE_LVL,BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE)
     print >> sys.stderr, stats()
@@ -258,6 +271,7 @@ def NLPSDAE(state,channel):
     MODEL_RELOAD = state.model_reload if hasattr(state,'model_reload') else None
     NINPUTS = state.ninputs          # Number of input dimensions
     INPUTTYPE = state.inputtype
+    RULE = state.rule if hasattr(state,'rule') else None
     RandomStreams(state.seed)
     numpy.random.seed(state.seed)
     datatrain = (PATH_DATA+NAME_DATA+'_1.pkl',PATH_DATA+NAME_LABEL+'_1.pkl')
@@ -281,7 +295,7 @@ def NLPSDAE(state,channel):
         N_HID = oldstate.n_hid + N_HID
         NOISE = oldstate.noise + NOISE
         ACTIVATION_REGULARIZATION_COEFF = oldstate.activation_regularization_coeff + ACTIVATION_REGULARIZATION_COEFF
-        WEIGHT_REGULATIZATION_COEFF = oldstate.weight_regularization_coeff[:-1] + WEIGHT_REGULATIZATION_COEFF
+        WEIGHT_REGULARIZATION_COEFF = oldstate.weight_regularization_coeff[:-1] + WEIGHT_REGULARIZATION_COEFF
         NEPOCHS = oldstate.nepochs + NEPOCHS
         LR = oldstate.lr + LR
         NOISE_LVL = oldstate.noise_lvl + NOISE_LVL
@@ -306,11 +320,11 @@ def NLPSDAE(state,channel):
 
     #RELOAD previous model
     for depth in range(depthbegin):
-        print >> sys.stderr, 'reload layer',i+1
+        print >> sys.stderr, 'reload layer',depth+1
         print >> sys.stderr, stats()
-        model.layers[depth].W.value = cPickle.load(open(MODEL_RELOAD + 'Layer%s_W.pkl'%(i+1),'r'))
-        model.layers[depth].b.value = cPickle.load(open(MODEL_RELOAD + 'Layer%s_b.pkl'%(i+1),'r'))
-        model.layers[depth].mask.value = cPickle.load(open(MODEL_RELOAD + 'Layer%s_mask.pkl'%(i+1),'r'))
+        model.layers[depth].W.value = cPickle.load(open(MODEL_RELOAD + 'Layer%s_W.pkl'%(depth+1),'r'))
+        model.layers[depth].b.value = cPickle.load(open(MODEL_RELOAD + 'Layer%s_b.pkl'%(depth+1),'r'))
+        model.layers[depth].mask.value = cPickle.load(open(MODEL_RELOAD + 'Layer%s_mask.pkl'%(depth+1),'r'))
 
     state.act = ACT
     state.depth = DEPTH
@@ -327,7 +341,7 @@ def NLPSDAE(state,channel):
 
 
     for depth in xrange(depthbegin,DEPTH):
-        print >> sys.stderr, 'BEGIN DEPTH %s...' % (percent(depth+1, DEPTH - depthbegin))
+        print >> sys.stderr, 'BEGIN DEPTH %s...' % (percent(depth+1, DEPTH))
         print >> sys.stderr, stats()
         if depth == 0:
             n_aux = NINPUTS
@@ -348,21 +362,37 @@ def NLPSDAE(state,channel):
                     del model.auxlayer.b
                 model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxn_out=n_aux)
             else:
-                model.reconstruction_cost = 'quadratic'
-                model.reconstruction_cost_fn = quadratic_cost
-                if model.auxlayer != None:
-                    del model.auxlayer.W
-                    del model.auxlayer.b
-                model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxact='softplus',auxn_out=n_aux,maskinit = model.layers[depth-1].mask.value)
- 
+		assert RULE != None
+                if RULE in [1,2,4]:
+                    model.reconstruction_cost = 'cross_entropy'
+                    model.reconstruction_cost_fn = cross_entropy_cost
+                    if model.auxlayer != None:
+                        del model.auxlayer.W
+                        del model.auxlayer.b
+                    model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxn_out=n_aux)
+                    rebuildunsup(model,depth,ACT,LR[depth],None,BATCHSIZE,train,RULE)
+                    if RULE in [1,2]:
+                        rescal_rectifier_model(model,depth,PATH_DATA,NAME_DATA,NB_FILES,RULE)
+                if RULE == 3:
+                    model.reconstruction_cost = 'quadratic'
+                    model.reconstruction_cost_fn = quadratic_cost
+                    if model.auxlayer != None:
+                        del model.auxlayer.W
+                        del model.auxlayer.b
+                    model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxact='softplus',auxn_out=n_aux)
+                if RULE == 5:
+                    model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxn_out=n_aux)
+                    model.auxsigma = theano.shared(value = numpy.asarray( 0.5 * numpy.ones((n_aux,)), dtype = theano.config.floatX), name = 'auxsigma')
+                    model.auxsigmamin = theano.shared(value = numpy.asarray( 0.0001 * numpy.ones((n_aux,)), dtype = theano.config.floatX), name = 'auxsigmamin')
+
         reconstruction_error = {}
         err = dict([(trainsize, {}) for trainsize in VALIDATION_TRAININGSIZE])
 
-        rebuildunsup(model,depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train)
+        rebuildunsup(model,depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,RULE)
 
         epoch = 0
         if epoch in EPOCHSTEST[depth]:
-            svm_validation(err, reconstruction_error, epoch, model, depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA, NAME_DATATEST)
+            svm_validation(err, reconstruction_error, epoch, model, depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA, NAME_DATATEST,RULE)
             state.currentepoch = epoch
             state.currentdepth = depth
             channel.save()
@@ -406,12 +436,12 @@ def NLPSDAE(state,channel):
                 print >> sys.stderr, "\t\t", stats()
             print >> sys.stderr, '...finished training epoch #%s' % percent(epoch, NEPOCHS[depth])
             print >> sys.stderr, stats()
-#            sys.stderr.flush()
+#           sys.stderr.flush()
 #           or maybe you need
             #jobman cachesync
 
             if epoch in EPOCHSTEST[depth]:
-                svm_validation(err, reconstruction_error, epoch, model,depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA, NAME_DATATEST)
+                svm_validation(err, reconstruction_error, epoch, model,depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA, NAME_DATATEST,RULE)
                 channel.save()
 
         if len(EPOCHSTEST[depth])!=0:
@@ -439,3 +469,30 @@ def NLPSDAE(state,channel):
         print >> sys.stderr, '...DONE DEPTH %s' % (percent(depth+1, DEPTH - depthbegin))
         print >> sys.stderr, stats()
     return channel.COMPLETE
+
+def rescal_rectifier_model(model,depth,PATH_DATA,NAME_DATA,NB_FILES,rule):
+    print >> sys.stderr, "Rescaling of the rectifier model following the rule: %s"%rule
+    print >> sys.stderr, stats()
+    outputs = [model.layers[depth-1].out]
+    func = theano.function([model.inp],outputs)
+    max_value = numpy.zeros((1,model.n_hid[depth-1]))
+    for filenb in xrange(1,NB_FILES + 1):
+        f =open(PATH_DATA + NAME_DATA +'_%s.pkl'%filenb,'r')
+        instances = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
+        f.close()
+        for i in range(instances.shape[0]/globalstate.BATCH_CREATION_LIBSVM):
+            rep = numpy.abs(func(instances[globalstate.BATCH_CREATION_LIBSVM*i:globalstate.BATCH_CREATION_LIBSVM*(i+1),:])[0])
+            max_value = numpy.asarray([numpy.concatenate([max_value,rep]).max(0)])
+    del instances
+    if rule == 2:
+        model.layers[depth-1].W.container.value[:] =  \
+		numpy.asarray((model.layers[depth-1].W.value.T / max_value).T,dtype=theano.config.floatX)
+        model.layers[depth-1].b.container.value[:] =  \
+		numpy.asarray((model.layers[depth-1].b.value / max_value[0,:]),dtype=theano.config.floatX)
+    if rule == 1:
+        model.layers[depth-1].W.container.value[:] =  model.layers[depth-1].W.value / max_value.max()
+        model.layers[depth-1].b.container.value[:] =  model.layers[depth-1].b.value / max_value.max()
+    print >> sys.stderr, "...done rescaling parameters"
+    print >> sys.stderr, stats()
+
+
