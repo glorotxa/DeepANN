@@ -54,6 +54,8 @@ def rebuildunsup(model,depth,ACT,LR,NOISE_LVL,batchsize,train,rule):
                 model.cost = (cost.sum(1)).mean()
                 grad = T.grad(model.cost,model.params + model.auxlayer.params + [model.auxsigma] )
 	        model.updates = dict((p,p - model.lr * g) for p, g in zip(model.params + model.auxlayer.params + [model.auxsigma] , grad))
+            if rule == 6:
+                givens.update({model.auxtarget : model.layers[depth-1].lin})
         TRAINFUNC = theano.function([index],model.cost,updates = model.updates, givens = givens)
         testfunc = theano.function([index],model.cost, givens = givens)
         n = train.value.shape[0] / batchsize
@@ -373,13 +375,16 @@ def NLPSDAE(state,channel):
                     rebuildunsup(model,depth,ACT,LR[depth],None,BATCHSIZE,train,RULE)
                     if RULE in [1,2]:
                         rescal_rectifier_model(model,depth,PATH_DATA,NAME_DATA,NB_FILES,RULE)
-                if RULE == 3:
+                if RULE in [3,6]:
                     model.reconstruction_cost = 'quadratic'
                     model.reconstruction_cost_fn = quadratic_cost
                     if model.auxlayer != None:
                         del model.auxlayer.W
                         del model.auxlayer.b
-                    model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxact='softplus',auxn_out=n_aux)
+                    if RULE == 3:
+                        model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxact='softplus',auxn_out=n_aux)
+                    if RULE == 6:
+                        model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxact='lin',auxn_out=n_aux)
                 if RULE == 5:
                     model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxn_out=n_aux)
                     model.auxsigma = theano.shared(value = numpy.asarray( 0.5 * numpy.ones((n_aux,)), dtype = theano.config.floatX), name = 'auxsigma')
