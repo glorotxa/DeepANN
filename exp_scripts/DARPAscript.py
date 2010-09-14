@@ -403,16 +403,17 @@ def NLPSDAE(state,channel):
 
         rebuildunsup(model,depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,RULE)
 
+        state.currentdepth = depth
+
         epoch = 0
         if epoch in EPOCHSTEST[depth]:
             svm_validation(err, reconstruction_error, epoch, model, depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA, NAME_DATATEST,RULE)
-            state.currentepoch = epoch
-            state.currentdepth = depth
             channel.save()
 
         train_reconstruction_error_mvgavg = MovingAverage()
         for epoch in xrange(1,NEPOCHS[depth]+1):
             time1 = time.time()
+            state.currentepoch = epoch
             for filenb in xrange(1,NB_FILES + 1):
                 print >> sys.stderr, "\t\tAbout to read file %s..." % percent(filenb, NB_FILES)
                 print >> sys.stderr, "\t\t", stats()
@@ -452,11 +453,11 @@ def NLPSDAE(state,channel):
 #           sys.stderr.flush()
 #           or maybe you need
             #jobman cachesync
-
+            
             if epoch in EPOCHSTEST[depth]:
                 svm_validation(err, reconstruction_error, epoch, model,depth,ACT,LR[depth],NOISE_LVL[depth],BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA, NAME_DATATEST,RULE)
-                channel.save()
 
+            channel.save()
         if len(EPOCHSTEST[depth])!=0:
             recmin = numpy.min(reconstruction_error.values())
             for k in reconstruction_error.keys():
