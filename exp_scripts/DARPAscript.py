@@ -107,11 +107,15 @@ def svm_validation_for_one_trainsize_and_one_C(C, nbinputs,numruns,datatrainsave
     os.system('%s -s 4 -c %s -l %s -r %s -q %s %s %s > /dev/null 2> /dev/null'%(globalstate.SVMRUNALL_PATH,C,nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE+'/currentsvm.txt'))
     results = open(PATH_SAVE+'/currentsvm.txt','r').readline()[:-1].split(' ')
     os.remove(PATH_SAVE+'/currentsvm.txt')
-    trainerr    = float(results[1])
-    trainerrdev = float(results[2])
-    testerr     = float(results[3])
-    testerrdev  = float(results[4])
-    return testerr,testerrdev,trainerr,trainerrdev
+    trainerr       = float(results[1])
+    trainerrdev    = float(results[2])
+    testerr        = float(results[3])
+    testerrdev     = float(results[4])
+    trainerrnew    = float(results[5])
+    trainerrnewdev = float(results[6])
+    testerrnew     = float(results[7])
+    testerrnewdev  = float(results[8])
+    return testerr,testerrdev,trainerr,trainerrdev,testerrnew,testerrnewdev,trainerrnew,trainerrnewdev
 
 
 def svm_validation_for_one_trainsize(nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE):
@@ -141,12 +145,14 @@ def svm_validation_for_one_trainsize(nbinputs,numruns,datatrainsave,datatestsave
     while len(C_to_allstats) < MAXSTEPS:
         if Ccurrent not in C_to_allstats:
             # Compute the validation statistics for the current C
-            (testerr,testerrdev,trainerr,trainerrdev) = svm_validation_for_one_trainsize_and_one_C(Ccurrent, nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE)
-            C_to_allstats[Ccurrent] = (testerr,testerrdev,trainerr,trainerrdev)
+            (testerr,testerrdev,trainerr,trainerrdev,testerrnew,testerrnewdev,trainerrnew,trainerrnewdev) = \
+                                                svm_validation_for_one_trainsize_and_one_C(Ccurrent, nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE)
+            C_to_allstats[Ccurrent] = (testerr,testerrdev,trainerr,trainerrdev,testerrnew,testerrnewdev,trainerrnew,trainerrnewdev)
         if Cnew not in C_to_allstats:
             # Compute the validation statistics for the next C
-            (testerr,testerrdev,trainerr,trainerrdev) = svm_validation_for_one_trainsize_and_one_C(Cnew, nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE)
-            C_to_allstats[Cnew] = (testerr,testerrdev,trainerr,trainerrdev)
+            (testerr,testerrdev,trainerr,trainerrdev,testerrnew,testerrnewdev,trainerrnew,trainerrnewdev) = \
+                                                svm_validation_for_one_trainsize_and_one_C(Cnew, nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE)
+            C_to_allstats[Cnew] = (testerr,testerrdev,trainerr,trainerrdev,testerrnew,testerrnewdev,trainerrnew,trainerrnewdev)
         # If Cnew has a lower test err than Ccurrent, then continue stepping in this direction
         if C_to_allstats[Cnew][0] < C_to_allstats[Ccurrent][0]:
             print >> sys.stderr, "\ttesterr[Cnew %f] = %f < testerr[Ccurrent %f] = %f" % (Cnew, C_to_allstats[Cnew][0], Ccurrent, C_to_allstats[Ccurrent][0])
@@ -170,7 +176,8 @@ def svm_validation_for_one_trainsize(nbinputs,numruns,datatrainsave,datatestsave
     allC.sort()
     for C in allC:
         print >> sys.stderr, "\ttesterr[C %f] = %f" % (C, C_to_allstats[C][0]),
-        if C == Cbest: print >> sys.stderr, " *best* (testerr = %f, testerrdev = %f, trainerr = %f, trainerrdev = %f)" % C_to_allstats[C]
+        if C == Cbest: print >> sys.stderr, " *best* (testerr = %f, testerrdev = %f, trainerr = %f, trainerrdev = %f, testerrnew = %f,\
+						testerrnewdev = %f, trainerrnew = %f, trainerrnewdev = %f)" % C_to_allstats[C]
         else: print >> sys.stderr, ""
     print >> sys.stderr, '...done with SVM validation for %s examples (numrums=%d, datatrainsave=%s, datatestsave=%s)' % (nbinputs, numruns,datatrainsave,datatestsave)
     print >> sys.stderr, stats()
@@ -196,8 +203,9 @@ def svm_validation(err, reconstruction_error, epoch, model, depth, ACT,LR,NOISE_
     for trainsize in VALIDATION_TRAININGSIZE:
         print trainsize
         print VALIDATION_RUNS_FOR_EACH_TRAININGSIZE
-        C,testerr,testerrdev,trainerr,trainerrdev = svm_validation_for_one_trainsize(trainsize,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE[`trainsize`],datatrainsave,datatestsave,PATH_SAVE)
-        err[trainsize].update({epoch:(C,testerr,testerrdev,trainerr,trainerrdev)})
+        C,testerr,testerrdev,trainerr,trainerrdev,testerrnew,testerrnewdev,trainerrnew,trainerrnewdev =\
+                                            svm_validation_for_one_trainsize(trainsize,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE[`trainsize`],datatrainsave,datatestsave,PATH_SAVE)
+        err[trainsize].update({epoch:(C,testerr,testerrdev,trainerr,trainerrdev,testerrnew,testerrnewdev,trainerrnew,trainerrnewdev)})
 
 
     if epoch != 0:
