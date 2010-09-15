@@ -44,18 +44,22 @@ def rebuildunsup(model,depth,ACT,LR,NOISE_LVL,batchsize,train,rule):
             givens.update({model.auxtarget : (model.layers[depth-1].out+1.)/2.})
         else:
             assert rule != None
-            if rule in [1,2,3,5]:
+            if rule in [1,2,3,5,7]:
                 givens.update({model.auxtarget : T.abs_(model.layers[depth-1].out)})
             if rule == 4:
-                givens.update({model.auxtarget : sigmoid_act(model.layers[depth-1].lin)})
-            if rule == 5:
+                givens.update({model.auxtarget : sigmoid_act(model.layers[depth-1].out)})
+            if rule in [5,7]:
                 cost = (model.auxtarget > 0.0) * (T.log(numpy.sqrt(2.*numpy.pi) * (T.abs_(model.auxsigma)+model.auxsigmamin)) + 0.5 * ((model.auxtarget - model.auxlayer.lin)/ (T.abs_(model.auxsigma)+model.auxsigmamin))**2) - \
                        (model.auxtarget == 0.0) * (T.log(0.5) + T.log(1 + T.erf(-model.auxlayer.lin / ( (T.abs_(model.auxsigma)+model.auxsigmamin) * numpy.sqrt(2.)))))
                 model.cost = (cost.sum(1)).mean()
-                grad = T.grad(model.cost,model.params + model.auxlayer.params + [model.auxsigma] )
-	        model.updates = dict((p,p - model.lr * g) for p, g in zip(model.params + model.auxlayer.params + [model.auxsigma] , grad))
+                if rule == 5:
+                    grad = T.grad(model.cost,model.params + model.auxlayer.params + [model.auxsigma] )
+	            model.updates = dict((p,p - model.lr * g) for p, g in zip(model.params + model.auxlayer.params + [model.auxsigma] , grad))
+                if rule == 7:
+                    grad = T.grad(model.cost,model.params + model.auxlayer.params)# + [model.auxsigma] )
+	            model.updates = dict((p,p - model.lr * g) for p, g in zip(model.params + model.auxlayer.params,grad))# + [model.auxsigma] , grad))
             if rule == 6:
-                givens.update({model.auxtarget : model.layers[depth-1].lin})
+                givens.update({model.auxtarget : model.layers[depth-1].out})
         TRAINFUNC = theano.function([index],model.cost,updates = model.updates, givens = givens)
         testfunc = theano.function([index],model.cost, givens = givens)
         n = train.value.shape[0] / batchsize
@@ -393,10 +397,11 @@ def NLPSDAE(state,channel):
                         model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxact='softplus',auxn_out=n_aux)
                     if RULE == 6:
                         model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxact='lin',auxn_out=n_aux)
-                if RULE == 5:
+                if RULE in [5,7]:
                     model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxn_out=n_aux)
-                    model.auxsigma = theano.shared(value = numpy.asarray( 0.5 * numpy.ones((n_aux,)), dtype = theano.config.floatX), name = 'auxsigma')
-                    model.auxsigmamin = theano.shared(value = numpy.asarray( 0.0001 * numpy.ones((n_aux,)), dtype = theano.config.floatX), name = 'auxsigmamin')
+                    stdvect = compute_representation_std(model,depth,PATH_DATA,NAME_DATA,NB_FILES)
+                    model.auxsigma = theano.shared(value = numpy.asarray(stdvect, dtype = theano.config.floatX), name = 'auxsigma')
+                    model.auxsigmamin = theano.shared(value = numpy.asarray( 0.001 * numpy.ones((n_aux,)), dtype = theano.config.floatX), name = 'auxsigmamin')
 
         reconstruction_error = {}
         err = dict([(trainsize, {}) for trainsize in VALIDATION_TRAININGSIZE])
@@ -508,5 +513,38 @@ def rescal_rectifier_model(model,depth,PATH_DATA,NAME_DATA,NB_FILES,rule):
         model.layers[depth-1].b.container.value[:] =  model.layers[depth-1].b.value / max_value.max()
     print >> sys.stderr, "...done rescaling parameters"
     print >> sys.stderr, stats()
+
+
+def compute_representation_std(model,depth,PATH_DATA,NAME_DATA,NB_FILES):
+    print >> sys.stderr, "Computing representation std for sigma initialization"
+    print >> sys.stderr, stats()
+    outputs = [model.layers[depth-1].out]
+    func = theano.function([model.inp],outputs)
+    sumvector = numpy.zeros((1,model.n_hid[depth-1]))
+    count = 0
+    for filenb in xrange(1,NB_FILES + 1):
+        f =open(PATH_DATA + NAME_DATA +'_%s.pkl'%filenb,'r')
+        instances = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
+        f.close()
+        for i in range(instances.shape[0]/globalstate.BATCH_CREATION_LIBSVM):
+            count += globalstate.BATCH_CREATION_LIBSVM
+            rep = numpy.abs(func(instances[globalstate.BATCH_CREATION_LIBSVM*i:globalstate.BATCH_CREATION_LIBSVM*(i+1),:])[0])
+            sumvector += rep.sum(0)
+    meanvector = sumvector / float(count)
+    sumvector = numpy.zeros((1,model.n_hid[depth-1]))
+    count = 0
+    for filenb in xrange(1,NB_FILES + 1):
+        f =open(PATH_DATA + NAME_DATA +'_%s.pkl'%filenb,'r')
+        instances = numpy.asarray(cPickle.load(f),dtype=theano.config.floatX)
+        f.close()
+        for i in range(instances.shape[0]/globalstate.BATCH_CREATION_LIBSVM):
+            count += globalstate.BATCH_CREATION_LIBSVM
+            rep = (numpy.abs(func(instances[globalstate.BATCH_CREATION_LIBSVM*i:globalstate.BATCH_CREATION_LIBSVM*(i+1),:])[0]) - meanvector)**2
+            sumvector += rep.sum(0)
+    stdvector = numpy.sqrt(sumvector / float(count))
+    del instances
+    print >> sys.stderr, "...done computing std"
+    print >> sys.stderr, stats()
+    return stdvector.reshape((model.n_hid[depth-1],))
 
 
