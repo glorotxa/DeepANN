@@ -44,20 +44,33 @@ def rebuildunsup(model,depth,ACT,LR,NOISE_LVL,batchsize,train,rule):
             givens.update({model.auxtarget : (model.layers[depth-1].out+1.)/2.})
         else:
             assert rule != None
-            if rule in [1,2,3,5,7]:
+            if rule in [1,2,3,5,7,8,9]:
                 givens.update({model.auxtarget : T.abs_(model.layers[depth-1].out)})
             if rule == 4:
                 givens.update({model.auxtarget : sigmoid_act(model.layers[depth-1].out)})
             if rule in [5,7]:
                 cost = (model.auxtarget > 0.0) * (T.log(numpy.sqrt(2.*numpy.pi) * (T.abs_(model.auxsigma)+model.auxsigmamin)) + 0.5 * ((model.auxtarget - model.auxlayer.lin)/ (T.abs_(model.auxsigma)+model.auxsigmamin))**2) - \
-                       (model.auxtarget == 0.0) * (T.log(0.5) + T.log(1 + T.erf(-model.auxlayer.lin / ( (T.abs_(model.auxsigma)+model.auxsigmamin) * numpy.sqrt(2.)))))
+                       (model.auxtarget == 0.0) * (T.log(0.5) + T.log(T.erfc((model.auxlayer.lin /  (T.abs_(model.auxsigma)+model.auxsigmamin)) * 1/numpy.sqrt(2.))))
                 model.cost = (cost.sum(1)).mean()
                 if rule == 5:
-                    grad = T.grad(model.cost,model.params + model.auxlayer.params + [model.auxsigma] )
-	            model.updates = dict((p,p - model.lr * g) for p, g in zip(model.params + model.auxlayer.params + [model.auxsigma] , grad))
+                    grad = T.grad(model.cost,model.params + model.auxlayer.params)
+	            model.updates = dict((p,p - model.lr * g) for p, g in zip(model.params + model.auxlayer.params , grad))
+                    model.updates.update({ model.auxsigma: model.auxsigma - model.lr * 0.01 * T.grad(model.cost,model.auxsigma) })
                 if rule == 7:
-                    grad = T.grad(model.cost,model.params + model.auxlayer.params)# + [model.auxsigma] )
-	            model.updates = dict((p,p - model.lr * g) for p, g in zip(model.params + model.auxlayer.params,grad))# + [model.auxsigma] , grad))
+                    grad = T.grad(model.cost,model.params + model.auxlayer.params)
+	            model.updates = dict((p,p - model.lr * g) for p, g in zip(model.params + model.auxlayer.params,grad))
+            if rule in [8,9]:
+                cost1 = - T.log(0.5) + (model.auxlayer.lin) / (T.abs_(model.auxsigma)+model.auxsigmamin) 
+                cost2 = - T.log( 1 - 0.5 * T.exp(  (model.auxlayer.lin) / (T.abs_(model.auxsigma)+model.auxsigmamin) ) )
+                cost3 = T.log( 2*(T.abs_(model.auxsigma)+model.auxsigmamin)) + T.abs_(model.auxtarget-model.auxlayer.lin) / (T.abs_(model.auxsigma)+model.auxsigmamin)
+                model.cost = ((T.switch(model.auxtarget>0, cost3 , T.switch(model.auxlayer.lin < 0 , cost2 , cost1))).sum(1)).mean()
+                if rule == 8:
+                    grad = T.grad(model.cost,model.params + model.auxlayer.params)
+	            model.updates = dict((p,p - model.lr * g) for p, g in zip(model.params + model.auxlayer.params , grad))
+                    model.updates.update({ model.auxsigma: model.auxsigma - model.lr * 0.01 * T.grad(model.cost,model.auxsigma) })
+                if rule == 9:
+                    grad = T.grad(model.cost,model.params + model.auxlayer.params)
+	            model.updates = dict((p,p - model.lr * g) for p, g in zip(model.params + model.auxlayer.params,grad))
             if rule == 6:
                 givens.update({model.auxtarget : model.layers[depth-1].out})
         TRAINFUNC = theano.function([index],model.cost,updates = model.updates, givens = givens)
@@ -397,7 +410,7 @@ def NLPSDAE(state,channel):
                         model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxact='softplus',auxn_out=n_aux)
                     if RULE == 6:
                         model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxact='lin',auxn_out=n_aux)
-                if RULE in [5,7]:
+                if RULE in [5,7,8,9]:
                     model.auxiliary(init=1,auxdepth=-DEPTH+depth+1, auxn_out=n_aux)
                     stdvect = compute_representation_std(model,depth,PATH_DATA,NAME_DATA,NB_FILES)
                     model.auxsigma = theano.shared(value = numpy.asarray(stdvect, dtype = theano.config.floatX), name = 'auxsigma')
