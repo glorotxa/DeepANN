@@ -295,7 +295,7 @@ def NLPSDAE(state,channel):
         #jobman cachesync
         
         if epoch in EPOCHSTEST:
-            svm_validation(err, epoch, model,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA, NAME_DATATEST,RULE)
+            svm_validation(err, epoch, model,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE, PATH_DATA, NAME_DATATEST)
 
         channel.save()
         if len(EPOCHSTEST)!=0:
