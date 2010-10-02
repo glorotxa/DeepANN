@@ -163,7 +163,7 @@ def svm_validation(err, epoch, model, train,datatrain,datatrainsave,datatest,dat
         err[trainsize].update({epoch:(C,testerr,testerrdev,trainerr,trainerrdev)})
 
     for trainsize in VALIDATION_TRAININGSIZE:
-        print >> sys.stderr, 'VALIDATION: epoch %d / trainsize %d / svm error' % ( epoch, trainsize),err[trainsize][epoch]
+        print >> sys.stderr, 'VALIDATION: epoch %d / trainsize %d / svm error' % ( epoch, trainsize) ,err[trainsize][epoch]
     print >> sys.stderr, stats()
 
     if epoch != 0:
@@ -286,11 +286,11 @@ def NLPSDAE(state,channel):
             for j in range(currentn/BATCHSIZE):
                 reconstruction_error_over_batch = TRAINFUNC(j)
                 train_reconstruction_error_mvgavg.add(reconstruction_error_over_batch)
-            print >> sys.stderr, "\t\tAt epoch %d, finished training over file %s, training pre-update reconstruction error %s" % (epoch, percent(filenb, NB_FILES))
+            print >> sys.stderr, "\t\tAt epoch %d, finished training over file %s" % (epoch, percent(filenb, NB_FILES))
             print >> sys.stderr, "\t\t", stats()
             train_reconstruction_error_mvgavg = MovingAverage()
             quadratic_mvavg = MovingAverage()
-        print >> sys.stderr, '...finished training epoch #%s' % percent(epoch, NEPOCHS)
+        print >> sys.stderr, '...finished training epoch #%s' % percent(epoch,NEPOCHS)
         print >> sys.stderr, stats()
 #           sys.stderr.flush()
 #           or maybe you need
