@@ -286,7 +286,7 @@ def NLPSDAE(state,channel):
             for j in range(currentn/BATCHSIZE):
                 reconstruction_error_over_batch = TRAINFUNC(j)
                 train_reconstruction_error_mvgavg.add(reconstruction_error_over_batch)
-            print >> sys.stderr, "\t\tAt depth %d, epoch %d, finished training over file %s, training pre-update reconstruction error %s" % (depth, epoch, percent(filenb, NB_FILES))
+            print >> sys.stderr, "\t\tAt epoch %d, finished training over file %s, training pre-update reconstruction error %s" % (epoch, percent(filenb, NB_FILES))
             print >> sys.stderr, "\t\t", stats()
             train_reconstruction_error_mvgavg = MovingAverage()
             quadratic_mvavg = MovingAverage()
@@ -314,7 +314,6 @@ def NLPSDAE(state,channel):
             for trainsize in VALIDATION_TRAININGSIZE:
                 state.besterr[`trainsize`] += [None]
                 state.besterrepoch[`trainsize`] += [None]
-        print >> sys.stderr, '...DONE DEPTH %s' % (percent(depth+1, DEPTH - depthbegin))
         print >> sys.stderr, stats()
     return channel.COMPLETE
 
