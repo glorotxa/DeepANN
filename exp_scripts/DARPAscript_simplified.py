@@ -253,7 +253,6 @@ def NLPSDAE(state,channel):
         channel.save()
 
     train_reconstruction_error_mvgavg = MovingAverage()
-    quadratic_mvavg = MovingAverage()
     for epoch in xrange(1,NEPOCHS+1):
         time1 = time.time()
         state.currentepoch = epoch
@@ -286,10 +285,9 @@ def NLPSDAE(state,channel):
             for j in range(currentn/BATCHSIZE):
                 reconstruction_error_over_batch = TRAINFUNC(j)
                 train_reconstruction_error_mvgavg.add(reconstruction_error_over_batch)
-            print >> sys.stderr, "\t\tAt epoch %d, finished training over file %s" % (epoch, percent(filenb, NB_FILES))
+            print >> sys.stderr, "\t\tAt epoch %d, finished training over file %s, online reconstruction error %s" % (epoch, percent(filenb, NB_FILES),train_reconstruction_error_mvgavg)
             print >> sys.stderr, "\t\t", stats()
             train_reconstruction_error_mvgavg = MovingAverage()
-            quadratic_mvavg = MovingAverage()
         print >> sys.stderr, '...finished training epoch #%s' % percent(epoch,NEPOCHS)
         print >> sys.stderr, stats()
 #           sys.stderr.flush()
