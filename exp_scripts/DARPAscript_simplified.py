@@ -39,7 +39,7 @@ def rebuildunsup(model,LR,NOISE_LVL,ACTIVATION_REGULARIZATION_COEFF, WEIGHT_REGU
     TRAINFUNC = theano.function([index],cost, updates = update, givens = givens)
 
 def createlibsvmfile(model,datafiles,dataout):
-    print >> sys.stderr, 'Creating libsvm file %s (model=%s, depth=%d, datafiles=%s)...' % (repr(dataout), repr(model),depth,datafiles)
+    print >> sys.stderr, 'Creating libsvm file %s (model=%s, datafiles=%s)...' % (repr(dataout), repr(model),datafiles)
     print >> sys.stderr, stats()
     outputs = [model.get_hidden_values(model.x)]
     func = theano.function([model.x],outputs)
@@ -80,11 +80,7 @@ def svm_validation_for_one_trainsize_and_one_C(C, nbinputs,numruns,datatrainsave
     trainerrdev    = float(results[2])
     testerr        = float(results[3])
     testerrdev     = float(results[4])
-    trainerrnew    = float(results[5])
-    trainerrnewdev = float(results[6])
-    testerrnew     = float(results[7])
-    testerrnewdev  = float(results[8])
-    return testerr,testerrdev,trainerr,trainerrdev,testerrnew,testerrnewdev,trainerrnew,trainerrnewdev
+    return testerr,testerrdev,trainerr,trainerrdev
 
 
 def svm_validation_for_one_trainsize(nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE):
@@ -114,14 +110,12 @@ def svm_validation_for_one_trainsize(nbinputs,numruns,datatrainsave,datatestsave
     while len(C_to_allstats) < MAXSTEPS:
         if Ccurrent not in C_to_allstats:
             # Compute the validation statistics for the current C
-            (testerr,testerrdev,trainerr,trainerrdev,testerrnew,testerrnewdev,trainerrnew,trainerrnewdev) = \
-                                                svm_validation_for_one_trainsize_and_one_C(Ccurrent, nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE)
-            C_to_allstats[Ccurrent] = (testerr,testerrdev,trainerr,trainerrdev,testerrnew,testerrnewdev,trainerrnew,trainerrnewdev)
+            testerr,testerrdev,trainerr,trainerrdev = svm_validation_for_one_trainsize_and_one_C(Ccurrent, nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE)
+            C_to_allstats[Ccurrent] = (testerr,testerrdev,trainerr,trainerrdev)
         if Cnew not in C_to_allstats:
             # Compute the validation statistics for the next C
-            (testerr,testerrdev,trainerr,trainerrdev,testerrnew,testerrnewdev,trainerrnew,trainerrnewdev) = \
-                                                svm_validation_for_one_trainsize_and_one_C(Cnew, nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE)
-            C_to_allstats[Cnew] = (testerr,testerrdev,trainerr,trainerrdev,testerrnew,testerrnewdev,trainerrnew,trainerrnewdev)
+            testerr,testerrdev,trainerr,trainerrdev = svm_validation_for_one_trainsize_and_one_C(Cnew, nbinputs,numruns,datatrainsave,datatestsave,PATH_SAVE)
+            C_to_allstats[Cnew] = (testerr,testerrdev,trainerr,trainerrdev)
         # If Cnew has a lower test err than Ccurrent, then continue stepping in this direction
         if C_to_allstats[Cnew][0] < C_to_allstats[Ccurrent][0]:
             print >> sys.stderr, "\ttesterr[Cnew %f] = %f < testerr[Ccurrent %f] = %f" % (Cnew, C_to_allstats[Cnew][0], Ccurrent, C_to_allstats[Ccurrent][0])
@@ -145,8 +139,7 @@ def svm_validation_for_one_trainsize(nbinputs,numruns,datatrainsave,datatestsave
     allC.sort()
     for C in allC:
         print >> sys.stderr, "\ttesterr[C %f] = %f" % (C, C_to_allstats[C][0]),
-        if C == Cbest: print >> sys.stderr, " *best* (testerr = %f, testerrdev = %f, trainerr = %f, trainerrdev = %f, testerrnew = %f,\
-						testerrnewdev = %f, trainerrnew = %f, trainerrnewdev = %f)" % C_to_allstats[C]
+        if C == Cbest: print >> sys.stderr, " *best* (testerr = %f, testerrdev = %f, trainerr = %f, trainerrdev = %f)"% C_to_allstats[C]
         else: print >> sys.stderr, ""
     print >> sys.stderr, '...done with SVM validation for %s examples (numrums=%d, datatrainsave=%s, datatestsave=%s)' % (nbinputs, numruns,datatrainsave,datatestsave)
     print >> sys.stderr, stats()
@@ -171,20 +164,20 @@ def svm_validation(err, epoch, model, train,datatrain,datatrainsave,datatest,dat
         err[trainsize].update({epoch:(C,testerr,testerrdev,trainerr,trainerrdev,testerrnew,testerrnewdev,trainerrnew,trainerrnewdev)})
 
     for trainsize in VALIDATION_TRAININGSIZE:
-        print >> sys.stderr, 'VALIDATION: depth %d / epoch %d / trainsize %d / svm error' % (depth+1, epoch, trainsize),err[trainsize][epoch]
+        print >> sys.stderr, 'VALIDATION: epoch %d / trainsize %d / svm error' % ( epoch, trainsize),err[trainsize][epoch]
     print >> sys.stderr, stats()
 
     if epoch != 0:
-        f = open('depth%serr.pkl'%depth,'w')
+        f = open('err.pkl','w')
         for trainsize in VALIDATION_TRAININGSIZE:
             cPickle.dump(err[trainsize],f,-1)
         f.close()
-        modeldir = os.path.join(PATH_SAVE, 'depth%spre%s' % (depth+1,epoch))
+        modeldir = os.path.join(PATH_SAVE, 'pre%s' % (epoch))
         if not os.path.isdir(modeldir):
             os.mkdir(modeldir)
         model.save(modeldir)
 
-    print >> sys.stderr, "...done validating (err=%s,epoch=%s,model=%s,depth=%s,ACT=%s,LR=%s,NOISE_LVL=%s,BATCHSIZE=%s,train=%s,datatrain=%s,datatrainsave=%s,datatest=%s,datatestsave=%s,VALIDATION_TRAININGSIZE=%s,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE=%s,PATH_SAVE=%s)" % (err, epoch, model, depth, ACT,LR,NOISE_LVL,BATCHSIZE,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE)
+    print >> sys.stderr, "...done validating (err=%s,epoch=%s,model=%s,train=%s,datatrain=%s,datatrainsave=%s,datatest=%s,datatestsave=%s,VALIDATION_TRAININGSIZE=%s,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE=%s,PATH_SAVE=%s)" % (err, epoch, model,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE)
     print >> sys.stderr, stats()
 
 
@@ -292,7 +285,6 @@ def NLPSDAE(state,channel):
             if train.value.max() > 1. and INPUTTYPE!='tfidf':
                 print >> sys.stderr, "WARNING: Some inputs are > 1, without tfidf inputtype, it should be in the range [0,1]" 
             for j in range(currentn/BATCHSIZE):
-                print j
                 reconstruction_error_over_batch = TRAINFUNC(j)
                 train_reconstruction_error_mvgavg.add(reconstruction_error_over_batch)
             print >> sys.stderr, "\t\tAt depth %d, epoch %d, finished training over file %s, training pre-update reconstruction error %s" % (depth, epoch, percent(filenb, NB_FILES))
