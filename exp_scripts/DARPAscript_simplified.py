@@ -159,9 +159,8 @@ def svm_validation(err, epoch, model, train,datatrain,datatrainsave,datatest,dat
     for trainsize in VALIDATION_TRAININGSIZE:
         print trainsize
         print VALIDATION_RUNS_FOR_EACH_TRAININGSIZE
-        C,testerr,testerrdev,trainerr,trainerrdev,testerrnew,testerrnewdev,trainerrnew,trainerrnewdev =\
-                                            svm_validation_for_one_trainsize(trainsize,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE[`trainsize`],datatrainsave,datatestsave,PATH_SAVE)
-        err[trainsize].update({epoch:(C,testerr,testerrdev,trainerr,trainerrdev,testerrnew,testerrnewdev,trainerrnew,trainerrnewdev)})
+        C,testerr,testerrdev,trainerr,trainerrdev = svm_validation_for_one_trainsize(trainsize,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE[`trainsize`],datatrainsave,datatestsave,PATH_SAVE)
+        err[trainsize].update({epoch:(C,testerr,testerrdev,trainerr,trainerrdev)})
 
     for trainsize in VALIDATION_TRAININGSIZE:
         print >> sys.stderr, 'VALIDATION: epoch %d / trainsize %d / svm error' % ( epoch, trainsize),err[trainsize][epoch]
