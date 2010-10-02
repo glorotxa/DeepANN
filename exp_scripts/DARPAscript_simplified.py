@@ -171,11 +171,6 @@ def svm_validation(err, epoch, model, train,datatrain,datatrainsave,datatest,dat
         for trainsize in VALIDATION_TRAININGSIZE:
             cPickle.dump(err[trainsize],f,-1)
         f.close()
-        modeldir = os.path.join(PATH_SAVE, 'pre%s' % (epoch))
-        if not os.path.isdir(modeldir):
-            os.mkdir(modeldir)
-        model.save(modeldir)
-
     print >> sys.stderr, "...done validating (err=%s,epoch=%s,model=%s,train=%s,datatrain=%s,datatrainsave=%s,datatest=%s,datatestsave=%s,VALIDATION_TRAININGSIZE=%s,VALIDATION_RUNS_FOR_EACH_TRAININGSIZE=%s,PATH_SAVE=%s)" % (err, epoch, model,train,datatrain,datatrainsave,datatest,datatestsave, VALIDATION_TRAININGSIZE, VALIDATION_RUNS_FOR_EACH_TRAININGSIZE, PATH_SAVE)
     print >> sys.stderr, stats()
 
